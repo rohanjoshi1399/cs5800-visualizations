@@ -105,6 +105,7 @@ button {
   transition: background 0.15s ease, color 0.15s ease;
 }
 button:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--moss-deep); outline-offset: 2px; }
 button.active { background: var(--moss); color: var(--paper); border-color: var(--moss); }
 

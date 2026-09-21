@@ -156,7 +156,9 @@
 
       <p class="section-label">click a butterfly to change its species: unknown &rarr; A &rarr; B &rarr; unknown</p>
       <div id="status" class="status-box" role="status" aria-live="polite">Nothing assigned yet.</div>
+      <button id="reveal-split" style="width:100%;margin-bottom:8px;" disabled>Sort into species</button>
       <button id="clear-labels" style="width:100%;">Reset all to unknown</button>
+      <p class="hint" style="margin-top:8px;">Sorting unlocks once every judgment holds. It only rearranges what you already decided.</p>
     </div>
 
   </div>
@@ -350,15 +352,42 @@ function allJudgmentsHold() {
     && edges.every(e => edgeStatus(e) === 'satisfied');
 }
 
+/* Splitting the specimens into their two groups is the insight of the whole
+   problem, so it is never automatic -- it waits for a deliberate click. This
+   only retreats from the split if the assignment stops working, since the
+   two labelled columns would otherwise be claiming something false. */
 function checkLayout() {
-  const solved = allJudgmentsHold();
-  if (solved && layoutMode !== 'bipartite') {
-    layoutMode = 'bipartite';
-    animateTo(bipartiteTargets(), 1000);
-  } else if (!solved && layoutMode !== 'circle') {
+  if (!allJudgmentsHold() && layoutMode !== 'circle') {
     layoutMode = 'circle';
     animateTo(circleTargets(), 750);
   }
+}
+
+function toggleSplit() {
+  if (!allJudgmentsHold()) return;
+  if (layoutMode === 'bipartite') {
+    layoutMode = 'circle';
+    animateTo(circleTargets(), 750);
+  } else {
+    layoutMode = 'bipartite';
+    animateTo(bipartiteTargets(), 1000);
+  }
+}
+
+// Called from renderGraph, so every code path keeps the button in sync.
+// Writes are guarded because the layout animation re-renders each frame.
+function updateSplitButton() {
+  const btn = document.getElementById('reveal-split');
+  const solved = allJudgmentsHold();
+  const split = layoutMode === 'bipartite';
+  const label = split ? 'Back to the circle' : 'Sort into species';
+  if (btn.disabled === solved) btn.disabled = !solved;
+  if (btn.textContent !== label) btn.textContent = label;
+  btn.classList.toggle('active', split);
+  const help = solved
+    ? (split ? 'Return the specimens to a circle' : 'Rearrange the specimens into their two groups')
+    : 'Available once every judgment holds';
+  if (btn.title !== help) btn.title = help;
 }
 
 function edgeKey(a, b) { return a < b ? a + '-' + b : b + '-' + a; }
@@ -526,6 +555,7 @@ function renderGraph() {
 
   if (hadFocus) restoreFocus();
   updateStatus();
+  updateSplitButton();
   renderTray();
 }
 
@@ -774,6 +804,7 @@ document.getElementById('clear-graph').addEventListener('click', () => {
   nodes = []; edges = []; pendingNode = null; selectedEdgeKey = null;
   renderGraph();
 });
+document.getElementById('reveal-split').addEventListener('click', toggleSplit);
 document.getElementById('clear-labels').addEventListener('click', () => {
   nodes.forEach(n => n.label = undefined);
   layoutNodes();

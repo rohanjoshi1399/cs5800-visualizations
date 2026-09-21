@@ -64,6 +64,12 @@ python -m http.server 8000
 - **Respect `prefers-reduced-motion`.** Intro animations are skipped and
   layout transitions become instant snaps.
 - **Live status text** sits in a `role="status" aria-live="polite"` region.
+- **Never reveal the structure on its own.** The moment a model rearranges
+  itself to expose the answer's shape, it has done the thinking for the
+  student. Week 1 gates its two-group split behind a button that unlocks only
+  once every judgment holds, and retreats if the assignment breaks. Put that
+  kind of reveal behind a deliberate click so the person running recitation
+  chooses when it happens.
 
 ## Deployment
 
