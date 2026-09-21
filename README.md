@@ -1,4 +1,4 @@
-# cs5800-recitation-viz
+# cs5800-visualizations
 
 Interactive problem visualizations for **CS 5800 — Algorithms** recitations at Northeastern.
 
