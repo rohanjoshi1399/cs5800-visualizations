@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CS 5800 — Recitation Visualizations</title>
+<meta name="description" content="Interactive problem visualizations for CS 5800 Algorithms recitations at Northeastern University. One problem each week, built for intuition." />
+<meta name="color-scheme" content="light" />
+<meta property="og:title" content="CS 5800 - Recitation Visualizations" />
+<meta property="og:description" content="Interactive problem visualizations for CS 5800 Algorithms recitations at Northeastern University. One problem each week, built for intuition." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="shared/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/site.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sitebar">
+    <span class="course-mark">CS 5800 · Algorithms · recitation</span>
+  </div>
+
+  <h1>Problem visualizations</h1>
+  <p class="subtitle">One problem each week, with an interactive model you can poke at. These are for building intuition before you write anything down. None of them solve the problem for you.</p>
+
+  <div class="divider" style="margin:26px 0 18px;"></div>
+
+  <div class="filter-row" id="filters"></div>
+
+  <div class="problem-list" id="list"></div>
+
+</div>
+
+<script>
+/* -------------------------------------------------------------
+   Add a new week by appending one entry to this array.
+   Newest weeks go at the top of the rendered list automatically.
+   ------------------------------------------------------------- */
+const PROBLEMS = [
+  {
+    week: 1,
+    title: 'Butterfly species judgments',
+    blurb: 'Specimens must each be species A or B. Pairwise judgments say "same" or "different." Can every judgment hold at once?',
+    tags: ['graphs', 'labeling'],
+    href: 'problems/week-01-butterflies.html'
+  }
+];
+
+const listEl = document.getElementById('list');
+const filtersEl = document.getElementById('filters');
+let activeTag = null;
+
+const allTags = [...new Set(PROBLEMS.flatMap(p => p.tags))].sort();
+
+function renderFilters() {
+  filtersEl.innerHTML = '';
+  const mk = (label, tag) => {
+    const b = document.createElement('button');
+    b.className = 'filter-chip' + (activeTag === tag ? ' on' : '');
+    b.textContent = label;
+    b.addEventListener('click', () => { activeTag = tag; renderFilters(); renderList(); });
+    filtersEl.appendChild(b);
+  };
+  mk('all weeks', null);
+  allTags.forEach(t => mk(t, t));
+}
+
+function renderList() {
+  listEl.innerHTML = '';
+  const shown = PROBLEMS
+    .filter(p => !activeTag || p.tags.includes(activeTag))
+    .sort((a, b) => b.week - a.week);
+
+  if (!shown.length) {
+    const d = document.createElement('div');
+    d.className = 'empty-note';
+    d.textContent = 'No problems tagged with that topic yet.';
+    listEl.appendChild(d);
+    return;
+  }
+
+  shown.forEach(p => {
+    const a = document.createElement('a');
+    a.className = 'problem-row';
+    a.href = p.href;
+
+    const wk = document.createElement('div');
+    wk.className = 'week-no';
+    wk.textContent = 'Week ' + String(p.week).padStart(2, '0');
+
+    const mid = document.createElement('div');
+    const h = document.createElement('h2');
+    h.className = 'problem-title';
+    h.textContent = p.title;
+    const blurb = document.createElement('p');
+    blurb.className = 'problem-blurb';
+    blurb.textContent = p.blurb;
+    const tags = document.createElement('div');
+    tags.className = 'row-tags';
+    p.tags.forEach(t => {
+      const s = document.createElement('span');
+      s.className = 'tag';
+      s.textContent = t;
+      tags.appendChild(s);
+    });
+    mid.append(h, blurb, tags);
+
+    const cue = document.createElement('div');
+    cue.className = 'row-cue';
+    cue.textContent = 'Open';
+
+    a.append(wk, mid, cue);
+    listEl.appendChild(a);
+  });
+}
+
+renderFilters();
+renderList();
+</script>
+</body>
+</html>

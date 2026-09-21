@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Week 1 — Butterfly species judgments | CS 5800</title>
+<meta name="description" content="Week 1: two butterfly species and pairwise same/different judgments. Assign species by hand and see which judgments hold. An interactive model for CS 5800 recitation." />
+<meta name="color-scheme" content="light" />
+<meta property="og:title" content="Week 1 - Butterfly species judgments | CS 5800" />
+<meta property="og:description" content="Week 1: two butterfly species and pairwise same/different judgments. Assign species by hand and see which judgments hold. An interactive model for CS 5800 recitation." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="../shared/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/site.css">
+<style>
+
+  .layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  svg { width: 100%; height: auto; display: block; }
+
+  .tray { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .tray-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .tray-title { font-size: 0.8rem; color: var(--ink-soft); }
+  .tray-verdict { font-size: 0.85rem; font-weight: 600; }
+  .tray-verdict.holds { color: var(--moss-deep); }
+  .tray-verdict.breaks { color: var(--alert); }
+  #tray-svg { background: var(--paper); border: 1px solid var(--line); border-radius: 2px; }
+
+  .mode-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  button.active.type-different { background: var(--rust); border-color: var(--rust); }
+  .example-row, .build-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+  .status-box {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 2px;
+    padding: 14px 16px; font-size: 0.95rem; line-height: 1.5; margin-bottom: 12px;
+  }
+  .status-box.all-good { border-color: var(--moss); background: var(--moss-soft); }
+  .status-box.has-violation { border-color: var(--alert); background: #F4E3DE; }
+
+  .species-key { display: flex; gap: 14px; margin-bottom: 14px; }
+  .species-card {
+    flex: 1; background: var(--paper); border: 1px solid var(--line);
+    border-radius: 2px; padding: 8px; text-align: center;
+  }
+  .species-card svg { width: 54px; margin: 0 auto; }
+  .species-card span { display: block; font-size: 0.78rem; color: var(--ink-soft); margin-top: 2px; }
+
+  #graph-svg { overflow: visible; }
+  #main-layer [tabindex]:focus-visible {
+    outline: 2px solid var(--moss-deep);
+    outline-offset: 3px;
+  }
+
+  #main-layer, #intro-layer { transition: opacity 0.7s ease; }
+  .wing-l, .wing-r { transition: fill 0.35s ease, opacity 0.35s ease; }
+  .flapping .wing-l, .flapping .wing-r { animation: flap 0.62s ease-in-out infinite; }
+  @keyframes flap { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(0.6); } }
+
+  .conflict-ring { animation: pulse-ring 1.5s ease-in-out infinite; transform-origin: 0px 6px; }
+  @keyframes pulse-ring {
+    0%, 100% { transform: scale(1); opacity: 0.95; }
+    50% { transform: scale(1.12); opacity: 0.45; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flapping .wing-l, .flapping .wing-r, .conflict-ring { animation: none; }
+    #main-layer, #intro-layer, .wing-l, .wing-r { transition: none; }
+  }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sitebar">
+    <span class="course-mark">CS 5800 · Week 01</span>
+    <a href="../index.html">&larr; All problems</a>
+  </div>
+
+  <h1>Butterfly species judgments</h1>
+  <div class="meta-strip">
+    <span class="tag">graphs</span>
+    <span class="tag">labeling</span>
+  </div>
+
+  <div class="statement">
+    <p>Your friends have taken up amateur lepidoptery. They return from a trip with n butterflies, each belonging to one of two species, A or B. They cannot label any single specimen directly.</p>
+    <p>Instead, for each pair of specimens they study the two side by side. If they are confident, they record the pair as "same" or "different." If not, they record nothing and the pair is ambiguous. This leaves n specimens and m judgments.</p>
+    <p>The judgments are <em>consistent</em> if it is possible to label each specimen A or B such that every pair marked "same" gets two matching labels and every pair marked "different" gets two differing labels. Determine whether the m judgments are consistent, in O(m + n) time.</p>
+  </div>
+
+  <p class="subtitle">Use the model below to get a feel for the problem. Assign a species to each butterfly and watch which judgments hold. The model does not run any algorithm; it only reports what your own assignment does.</p>
+
+  <div class="divider" style="margin:24px 0;"></div>
+
+  <div class="layout">
+
+    <div class="panel">
+      <svg id="graph-svg" viewBox="0 0 660 440" role="group"
+           aria-label="Specimen graph. Each butterfly is a specimen; each label between two butterflies is a judgment. Tab to a butterfly and press Enter to change its species.">
+        <g id="main-layer" style="opacity:0"></g>
+        <g id="intro-layer" style="opacity:1" pointer-events="none"></g>
+      </svg>
+
+      <div class="tray">
+        <div class="tray-head">
+          <span class="tray-title" id="tray-title">Side-by-side comparison</span>
+          <span class="tray-verdict" id="tray-verdict"></span>
+        </div>
+        <svg id="tray-svg" viewBox="0 0 660 150" role="img"
+             aria-label="Side-by-side comparison of the selected pair of specimens"></svg>
+        <p class="hint" style="margin-top:8px;">Click any judgment label in the graph above to compare that pair here.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="section-label">the two species</p>
+      <div class="species-key">
+        <div class="species-card"><svg id="key-a" viewBox="-40 -34 80 78"></svg><span>species A</span></div>
+        <div class="species-card"><svg id="key-b" viewBox="-40 -34 80 78"></svg><span>species B</span></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <p class="section-label">choose a mode</p>
+      <div class="mode-row">
+        <button id="mode-examples" class="active">Try an example</button>
+        <button id="mode-build">Build your own</button>
+      </div>
+
+      <div id="examples-controls">
+        <div class="example-row">
+          <button id="load-example-1">Example 1</button>
+          <button id="load-example-2">Example 2</button>
+          <button id="load-example-3">Example 3</button>
+        </div>
+      </div>
+
+      <div id="build-controls" style="display:none;">
+        <div class="build-row">
+          <button id="add-node">+ Add butterfly</button>
+          <button id="remove-node">- Remove last</button>
+          <button id="clear-graph">Clear all</button>
+        </div>
+        <div class="build-row">
+          <button id="edge-same" class="active">Mark pairs: same</button>
+          <button id="edge-diff" class="type-different">Mark pairs: different</button>
+        </div>
+        <p class="hint">Click one butterfly, then another, to record a judgment between them. Repeat the same pair to remove it. Click a single butterfly twice to change its species instead.</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <p class="section-label">click a butterfly to change its species: unknown &rarr; A &rarr; B &rarr; unknown</p>
+      <div id="status" class="status-box" role="status" aria-live="polite">Nothing assigned yet.</div>
+      <button id="clear-labels" style="width:100%;">Reset all to unknown</button>
+    </div>
+
+  </div>
+
+  <div class="questions wrap-narrow" style="padding:0;">
+    <div class="divider" style="margin:34px 0 22px;"></div>
+    <h2>Questions to sit with</h2>
+    <ol>
+      <li>Load Example 1 and find an assignment where every judgment holds. Now find a second one. How are the two related, and does that relationship always happen?</li>
+      <li>Once you have fixed the species of one butterfly, how much of the rest is still up to you?</li>
+      <li>Try Example 2. When you cannot satisfy everything, what exactly is stopping you? Point to the specific set of judgments responsible, not just the butterfly that lights up.</li>
+      <li>Example 3 has a group of butterflies with no judgments connecting it to the others. Does that change whether the whole set is consistent?</li>
+      <li>In build mode, construct the smallest set of judgments you can that is impossible to satisfy. Then make another that is impossible for a different reason, if you can.</li>
+      <li>Suppose someone hands you a complete assignment and claims it works. How much work does it take you to check their claim? Is checking cheaper than finding one?</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+
+const NS = 'http://www.w3.org/2000/svg';
+const mainLayer = document.getElementById('main-layer');
+const introLayer = document.getElementById('intro-layer');
+const traySvg = document.getElementById('tray-svg');
+
+let nodes = [];
+let edges = [];
+let currentMode = 'examples';
+let pendingEdgeType = 'same';
+let pendingNode = null;
+let selectedEdgeKey = null;
+let introDone = false;
+let focusKey = null;
+let layoutMode = 'circle';
+let animFrame = null;
+
+const SPECIES = {
+  A: { wing: '#3E6B4A', wingLower: '#325A3D', accent: '#CFE3C9', pattern: 'dots' },
+  B: { wing: '#A8571E', wingLower: '#8E4716', accent: '#F6E2C4', pattern: 'stripes' },
+  unknown: { wing: '#A9A288', wingLower: '#968F76', accent: '#CFC9B2', pattern: 'none' }
+};
+
+/* ---------- butterfly drawing ---------- */
+
+function buildButterfly(labelKey, opts) {
+  opts = opts || {};
+  const sp = SPECIES[labelKey || 'unknown'];
+  const g = document.createElementNS(NS, 'g');
+
+  const wings = [
+    { d: 'M0,0 C -21,-26 -38,-7 -23,12 C -13,23 -4,11 0,0 Z', cls: 'wing-l', fill: sp.wing, side: -1, upper: true },
+    { d: 'M0,0 C 21,-26 38,-7 23,12 C 13,23 4,11 0,0 Z', cls: 'wing-r', fill: sp.wing, side: 1, upper: true },
+    { d: 'M0,2 C -15,11 -23,24 -11,28 C -3,30 0,15 0,2 Z', cls: 'wing-l', fill: sp.wingLower, side: -1, upper: false },
+    { d: 'M0,2 C 15,11 23,24 11,28 C 3,30 0,15 0,2 Z', cls: 'wing-r', fill: sp.wingLower, side: 1, upper: false }
+  ];
+
+  wings.forEach(w => {
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', w.d);
+    p.setAttribute('fill', w.fill);
+    p.classList.add(w.cls);
+    g.appendChild(p);
+  });
+
+  // species markings: A gets dots, B gets stripes, unknown gets nothing
+  if (sp.pattern === 'dots') {
+    [[-15, -9, 3.6], [15, -9, 3.6], [-20, 2, 2.4], [20, 2, 2.4], [-9, 19, 2.2], [9, 19, 2.2]].forEach(([cx, cy, r]) => {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r);
+      c.setAttribute('fill', sp.accent);
+      c.classList.add(cx < 0 ? 'wing-l' : 'wing-r');
+      g.appendChild(c);
+    });
+  } else if (sp.pattern === 'stripes') {
+    [-1, 1].forEach(dir => {
+      const p1 = document.createElementNS(NS, 'path');
+      p1.setAttribute('d', `M${dir * 8},-13 C ${dir * 20},-14 ${dir * 27},-4 ${dir * 24},4`);
+      p1.setAttribute('stroke', sp.accent); p1.setAttribute('stroke-width', '3.4'); p1.setAttribute('fill', 'none');
+      p1.classList.add(dir < 0 ? 'wing-l' : 'wing-r');
+      g.appendChild(p1);
+      const p2 = document.createElementNS(NS, 'path');
+      p2.setAttribute('d', `M${dir * 5},9 C ${dir * 13},14 ${dir * 17},20 ${dir * 14},24`);
+      p2.setAttribute('stroke', sp.accent); p2.setAttribute('stroke-width', '2.6'); p2.setAttribute('fill', 'none');
+      p2.classList.add(dir < 0 ? 'wing-l' : 'wing-r');
+      g.appendChild(p2);
+    });
+  }
+
+  const body = document.createElementNS(NS, 'ellipse');
+  body.setAttribute('cx', 0); body.setAttribute('cy', 6);
+  body.setAttribute('rx', 2.6); body.setAttribute('ry', 12);
+  body.setAttribute('fill', '#2B2A24');
+  g.appendChild(body);
+
+  [-1, 1].forEach(dir => {
+    const ant = document.createElementNS(NS, 'path');
+    ant.setAttribute('d', `M${dir},-6 C ${dir * 5},-13 ${dir * 9},-15 ${dir * 12},-20`);
+    ant.setAttribute('stroke', '#2B2A24'); ant.setAttribute('stroke-width', 1.1); ant.setAttribute('fill', 'none');
+    g.appendChild(ant);
+  });
+
+  if (!labelKey && opts.showQuestion !== false) {
+    const q = document.createElementNS(NS, 'text');
+    q.setAttribute('x', 0); q.setAttribute('y', 10);
+    q.setAttribute('text-anchor', 'middle');
+    q.setAttribute('font-family', 'IBM Plex Mono, monospace');
+    q.setAttribute('font-size', 11); q.setAttribute('fill', '#E7E1CE');
+    q.textContent = '?';
+    g.appendChild(q);
+  }
+
+  return g;
+}
+
+/* ---------- layout ---------- */
+
+function circleTargets() {
+  const n = nodes.length;
+  const cx = 330, cy = 215, r = n <= 1 ? 0 : Math.min(155, 62 + n * 11);
+  const out = {};
+  nodes.forEach((node, i) => {
+    const theta = (2 * Math.PI * i) / Math.max(n, 1) - Math.PI / 2;
+    out[node.id] = { x: cx + r * Math.cos(theta), y: cy + r * Math.sin(theta) };
+  });
+  return out;
+}
+
+// snap straight to the circle, skipping any in-flight animation
+function layoutNodes() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  const targets = circleTargets();
+  nodes.forEach(node => { node.x = targets[node.id].x; node.y = targets[node.id].y; });
+  layoutMode = 'circle';
+}
+
+function bipartiteTargets() {
+  const colA = nodes.filter(n => n.label === 'A');
+  const colB = nodes.filter(n => n.label === 'B');
+  const out = {};
+  const place = (list, x) => {
+    const top = 75, bottom = 355;
+    list.forEach((node, i) => {
+      const y = list.length === 1
+        ? (top + bottom) / 2
+        : top + (bottom - top) * (i / (list.length - 1));
+      out[node.id] = { x, y };
+    });
+  };
+  place(colA, 190);
+  place(colB, 470);
+  return out;
+}
+
+const prefersReducedMotion = window.matchMedia
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function animateTo(targets, duration) {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  const start = {};
+  nodes.forEach(n => start[n.id] = { x: n.x, y: n.y });
+
+  if (prefersReducedMotion) {
+    nodes.forEach(n => { if (targets[n.id]) { n.x = targets[n.id].x; n.y = targets[n.id].y; } });
+    renderGraph();
+    return;
+  }
+
+  const t0 = performance.now();
+  const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+  function step(now) {
+    const p = Math.min((now - t0) / duration, 1);
+    const k = ease(p);
+    nodes.forEach(n => {
+      const s = start[n.id], tgt = targets[n.id];
+      if (!s || !tgt) return;
+      n.x = s.x + (tgt.x - s.x) * k;
+      n.y = s.y + (tgt.y - s.y) * k;
+    });
+    renderGraph();
+    if (p < 1) { animFrame = requestAnimationFrame(step); }
+    else { animFrame = null; }
+  }
+  animFrame = requestAnimationFrame(step);
+}
+
+function allJudgmentsHold() {
+  return edges.length > 0
+    && nodes.every(n => n.label)
+    && edges.every(e => edgeStatus(e) === 'satisfied');
+}
+
+function checkLayout() {
+  const solved = allJudgmentsHold();
+  if (solved && layoutMode !== 'bipartite') {
+    layoutMode = 'bipartite';
+    animateTo(bipartiteTargets(), 1000);
+  } else if (!solved && layoutMode !== 'circle') {
+    layoutMode = 'circle';
+    animateTo(circleTargets(), 750);
+  }
+}
+
+function edgeKey(a, b) { return a < b ? a + '-' + b : b + '-' + a; }
+function findEdge(a, b) { return edges.find(e => edgeKey(e.a, e.b) === edgeKey(a, b)); }
+function getNode(id) { return nodes.find(n => n.id === id); }
+
+function edgeStatus(e) {
+  const a = getNode(e.a), b = getNode(e.b);
+  if (!a || !b || !a.label || !b.label) return 'neutral';
+  const ok = e.type === 'same' ? a.label === b.label : a.label !== b.label;
+  return ok ? 'satisfied' : 'violated';
+}
+
+/* ---------- main render ---------- */
+
+function renderGraph() {
+  const hadFocus = mainLayer.contains(document.activeElement);
+  mainLayer.innerHTML = '';
+
+  if (layoutMode === 'bipartite') {
+    const rule = document.createElementNS(NS, 'line');
+    rule.setAttribute('x1', 330); rule.setAttribute('y1', 58);
+    rule.setAttribute('x2', 330); rule.setAttribute('y2', 400);
+    rule.setAttribute('stroke', '#B7AD8E');
+    rule.setAttribute('stroke-width', 1);
+    rule.setAttribute('stroke-dasharray', '3,6');
+    mainLayer.appendChild(rule);
+
+    [['species A', 190, '#2C4F36'], ['species B', 470, '#7E3F13']].forEach(([txt, x, col]) => {
+      const h = document.createElementNS(NS, 'text');
+      h.setAttribute('x', x); h.setAttribute('y', 38);
+      h.setAttribute('text-anchor', 'middle');
+      h.setAttribute('font-family', 'Fraunces, serif');
+      h.setAttribute('font-size', 17);
+      h.setAttribute('fill', col);
+      h.textContent = txt;
+      mainLayer.appendChild(h);
+    });
+  }
+
+  edges.forEach(e => {
+    const a = getNode(e.a), b = getNode(e.b);
+    if (!a || !b) return;
+    const key = edgeKey(e.a, e.b);
+    const status = edgeStatus(e);
+    let stroke = '#8A8365', width = 2;
+    if (status === 'satisfied') { stroke = '#3E6B4A'; width = 3.4; }
+    if (status === 'violated') { stroke = '#8E2B1F'; width = 3.8; }
+
+    const line = document.createElementNS(NS, 'line');
+    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+    line.setAttribute('stroke', stroke);
+    line.setAttribute('stroke-width', width);
+    if (e.type === 'different') line.setAttribute('stroke-dasharray', '8,6');
+    mainLayer.appendChild(line);
+
+    // judgment word at midpoint
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const broken = status === 'violated';
+    const labelWord = e.type === 'same' ? 'same' : 'different';
+    const plateText = broken ? '✕ ' + labelWord : labelWord;
+    const w = (e.type === 'same' ? 40 : 52) + (broken ? 14 : 0);
+    const plate = document.createElementNS(NS, 'rect');
+    plate.setAttribute('x', mx - w / 2); plate.setAttribute('y', my - 10);
+    plate.setAttribute('width', w); plate.setAttribute('height', 20);
+    plate.setAttribute('rx', 2);
+    plate.setAttribute('fill', broken ? '#F4E3DE' : '#DCD4BA');
+    plate.setAttribute('stroke', selectedEdgeKey === key ? '#21281F' : stroke);
+    plate.setAttribute('stroke-width', broken || selectedEdgeKey === key ? 2 : 1);
+    mainLayer.appendChild(plate);
+
+    const wordText = document.createElementNS(NS, 'text');
+    wordText.setAttribute('x', mx); wordText.setAttribute('y', my + 4);
+    wordText.setAttribute('text-anchor', 'middle');
+    wordText.setAttribute('font-family', 'IBM Plex Sans, sans-serif');
+    wordText.setAttribute('font-size', 10.5);
+    wordText.setAttribute('font-weight', broken ? '600' : '400');
+    wordText.setAttribute('fill', status === 'neutral' ? '#52584C' : stroke);
+    wordText.textContent = plateText;
+    mainLayer.appendChild(wordText);
+
+    // invisible fat hit area for clicking the judgment
+    const hit = document.createElementNS(NS, 'line');
+    hit.setAttribute('x1', a.x); hit.setAttribute('y1', a.y);
+    hit.setAttribute('x2', b.x); hit.setAttribute('y2', b.y);
+    hit.setAttribute('stroke', 'transparent');
+    hit.setAttribute('stroke-width', 22);
+    hit.setAttribute('pointer-events', 'stroke');
+    hit.style.cursor = 'pointer';
+    const pick = () => {
+      if (!introDone) return;
+      focusKey = 'edge:' + key;
+      selectedEdgeKey = key;
+      renderGraph();
+    };
+    hit.addEventListener('click', pick);
+    hit.setAttribute('tabindex', '0');
+    hit.setAttribute('role', 'button');
+    hit.dataset.focusKey = 'edge:' + key;
+    hit.setAttribute('aria-label',
+      `Judgment "${labelWord}" between specimens ${e.a} and ${e.b}. Compare this pair.`);
+    hit.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); }
+    });
+    mainLayer.appendChild(hit);
+  });
+
+  nodes.forEach(node => {
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('transform', `translate(${node.x},${node.y})`);
+    g.style.cursor = 'pointer';
+
+    const inViolation = edges.some(e =>
+      (e.a === node.id || e.b === node.id) && edgeStatus(e) === 'violated');
+
+    if (inViolation) {
+      const ring = document.createElementNS(NS, 'circle');
+      ring.setAttribute('cx', 0); ring.setAttribute('cy', 6);
+      ring.setAttribute('r', 37);
+      ring.setAttribute('fill', '#8E2B1F');
+      ring.setAttribute('fill-opacity', '0.13');
+      ring.setAttribute('stroke', '#8E2B1F');
+      ring.setAttribute('stroke-width', 2.5);
+      ring.classList.add('conflict-ring');
+      g.appendChild(ring);
+    }
+
+    const bfly = buildButterfly(node.label);
+    if (pendingNode === node.id) {
+      const halo = document.createElementNS(NS, 'circle');
+      halo.setAttribute('cx', 0); halo.setAttribute('cy', 6);
+      halo.setAttribute('r', 36);
+      halo.setAttribute('fill', 'none');
+      halo.setAttribute('stroke', '#21281F');
+      halo.setAttribute('stroke-width', 1.5);
+      halo.setAttribute('stroke-dasharray', '4,4');
+      g.appendChild(halo);
+    }
+    g.appendChild(bfly);
+
+    const tag = document.createElementNS(NS, 'text');
+    tag.setAttribute('x', 0); tag.setAttribute('y', 43);
+    tag.setAttribute('text-anchor', 'middle');
+    tag.setAttribute('font-family', 'IBM Plex Mono, monospace');
+    tag.setAttribute('font-size', 11);
+    tag.setAttribute('fill', '#52584C');
+    tag.textContent = node.id;
+    g.appendChild(tag);
+
+    g.addEventListener('click', () => { focusKey = 'node:' + node.id; onNodeClick(node.id); });
+    g.setAttribute('tabindex', '0');
+    g.setAttribute('role', 'button');
+    g.dataset.focusKey = 'node:' + node.id;
+    g.setAttribute('aria-label',
+      `Specimen ${node.id}, currently ${node.label ? 'species ' + node.label : 'unknown'}` +
+      (inViolation ? ', involved in a broken judgment' : '') + '. Change its species.');
+    g.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault(); focusKey = 'node:' + node.id; onNodeClick(node.id);
+      }
+    });
+    mainLayer.appendChild(g);
+  });
+
+  if (hadFocus) restoreFocus();
+  updateStatus();
+  renderTray();
+}
+
+function restoreFocus() {
+  if (!focusKey) return;
+  const el = mainLayer.querySelector(`[data-focus-key="${focusKey}"]`);
+  if (el) el.focus({ preventScroll: true });
+  else focusKey = null;
+}
+
+/* ---------- side-by-side comparison tray ---------- */
+
+function renderTray() {
+  traySvg.innerHTML = '';
+  const titleEl = document.getElementById('tray-title');
+  const verdictEl = document.getElementById('tray-verdict');
+  verdictEl.className = 'tray-verdict';
+  verdictEl.textContent = '';
+
+  let e = edges.find(ed => edgeKey(ed.a, ed.b) === selectedEdgeKey);
+  if (!e && edges.length) {
+    e = edges[0];
+    selectedEdgeKey = edgeKey(e.a, e.b);
+  }
+  if (!e) {
+    titleEl.textContent = 'Record a judgment between two butterflies to compare them here';
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', 330); t.setAttribute('y', 80);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-family', 'IBM Plex Sans, sans-serif');
+    t.setAttribute('font-size', 13); t.setAttribute('fill', '#8A8365');
+    t.textContent = 'No judgments in this set yet';
+    traySvg.appendChild(t);
+    return;
+  }
+
+  const a = getNode(e.a), b = getNode(e.b);
+  if (!a || !b) { titleEl.textContent = 'Side-by-side comparison'; return; }
+  const status = edgeStatus(e);
+  titleEl.textContent = `Specimens ${a.id} and ${b.id}, judged "${e.type}"`;
+  if (status === 'satisfied') { verdictEl.textContent = 'judgment holds'; verdictEl.classList.add('holds'); }
+  if (status === 'violated') { verdictEl.textContent = 'judgment broken'; verdictEl.classList.add('breaks'); }
+  if (status === 'neutral') verdictEl.textContent = 'not yet decided';
+
+  [[a, 215], [b, 445]].forEach(([node, x]) => {
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('transform', `translate(${x},52) scale(1.45)`);
+    g.appendChild(buildButterfly(node.label));
+    traySvg.appendChild(g);
+
+    const cap = document.createElementNS(NS, 'text');
+    cap.setAttribute('x', x); cap.setAttribute('y', 128);
+    cap.setAttribute('text-anchor', 'middle');
+    cap.setAttribute('font-family', 'IBM Plex Mono, monospace');
+    cap.setAttribute('font-size', 11); cap.setAttribute('fill', '#52584C');
+    cap.textContent = `${node.id} · ${node.label ? 'species ' + node.label : 'unknown'}`;
+    traySvg.appendChild(cap);
+  });
+
+  const between = document.createElementNS(NS, 'text');
+  between.setAttribute('x', 330); between.setAttribute('y', 62);
+  between.setAttribute('text-anchor', 'middle');
+  between.setAttribute('font-family', 'Fraunces, serif');
+  between.setAttribute('font-size', 15);
+  between.setAttribute('fill', status === 'violated' ? '#8E2B1F' : (status === 'satisfied' ? '#2C4F36' : '#52584C'));
+  between.textContent = e.type === 'same' ? 'must match' : 'must differ';
+  traySvg.appendChild(between);
+
+  const mark = document.createElementNS(NS, 'text');
+  mark.setAttribute('x', 330); mark.setAttribute('y', 92);
+  mark.setAttribute('text-anchor', 'middle');
+  mark.setAttribute('font-size', 22);
+  mark.setAttribute('fill', status === 'violated' ? '#8E2B1F' : '#2C4F36');
+  mark.textContent = status === 'satisfied' ? '✓' : (status === 'violated' ? '✕' : '');
+  traySvg.appendChild(mark);
+}
+
+/* ---------- interaction ---------- */
+
+function onNodeClick(id) {
+  if (!introDone) return;
+  const node = getNode(id);
+  if (currentMode === 'build') {
+    if (pendingNode === null) { pendingNode = id; renderGraph(); return; }
+    if (pendingNode === id) { pendingNode = null; cycleLabel(node); renderGraph(); checkLayout(); return; }
+    const existing = findEdge(pendingNode, id);
+    if (existing && existing.type === pendingEdgeType) {
+      edges = edges.filter(x => x !== existing);
+      if (selectedEdgeKey === edgeKey(existing.a, existing.b)) selectedEdgeKey = null;
+    } else if (existing) {
+      existing.type = pendingEdgeType;
+    } else {
+      edges.push({ a: pendingNode, b: id, type: pendingEdgeType });
+    }
+    pendingNode = null;
+    renderGraph();
+    checkLayout();
+    return;
+  }
+  cycleLabel(node);
+  renderGraph();
+  checkLayout();
+}
+
+function cycleLabel(node) {
+  if (node.label === undefined) node.label = 'A';
+  else if (node.label === 'A') node.label = 'B';
+  else node.label = undefined;
+}
+
+function updateStatus() {
+  const box = document.getElementById('status');
+  box.classList.remove('all-good', 'has-violation');
+  if (edges.length === 0) {
+    box.textContent = nodes.length ? 'No judgments recorded in this set.' : 'No specimens yet.';
+    return;
+  }
+  let sat = 0, vio = 0, neu = 0;
+  edges.forEach(e => {
+    const s = edgeStatus(e);
+    if (s === 'satisfied') sat++; else if (s === 'violated') vio++; else neu++;
+  });
+  const unknown = nodes.filter(n => !n.label).length;
+  let text = `${sat} of ${edges.length} judgments hold.`;
+  if (vio) text += ` ${vio} broken.`;
+  if (neu) text += ` ${neu} waiting on an unknown specimen.`;
+  if (!vio && !neu && unknown) text += ` ${unknown} specimen${unknown > 1 ? 's' : ''} still unknown.`;
+  if (!vio && !neu && !unknown) text = `All ${edges.length} judgments hold with this assignment.`;
+  box.textContent = text;
+  if (vio) box.classList.add('has-violation');
+  else if (!neu) box.classList.add('all-good');
+}
+
+/* ---------- intro animation ---------- */
+
+function playIntro() {
+  introLayer.innerHTML = '';
+  nodes.forEach(node => {
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('transform', `translate(${node.x},${node.y})`);
+    g.classList.add('flapping');
+    g.appendChild(buildButterfly(undefined, { showQuestion: false }));
+    introLayer.appendChild(g);
+  });
+  introLayer.style.opacity = '1';
+  mainLayer.style.opacity = '0';
+  renderGraph();
+  setTimeout(() => {
+    introLayer.style.opacity = '0';
+    mainLayer.style.opacity = '1';
+    introDone = true;
+    setTimeout(() => { introLayer.innerHTML = ''; }, 750);
+  }, 1500);
+}
+
+/* ---------- species key ---------- */
+
+function renderKey() {
+  ['A', 'B'].forEach(sp => {
+    const target = document.getElementById('key-' + sp.toLowerCase());
+    target.innerHTML = '';
+    target.appendChild(buildButterfly(sp));
+  });
+}
+
+/* ---------- examples ---------- */
+
+function setExample1() {
+  nodes = [1, 2, 3, 4, 5, 6].map(id => ({ id, label: undefined }));
+  edges = [
+    { a: 1, b: 2, type: 'different' },
+    { a: 2, b: 3, type: 'same' },
+    { a: 1, b: 3, type: 'different' },
+    { a: 3, b: 4, type: 'different' },
+    { a: 4, b: 5, type: 'same' },
+    { a: 5, b: 6, type: 'different' }
+  ];
+  afterLoad();
+}
+
+function setExample2() {
+  nodes = [1, 2, 3, 4, 5].map(id => ({ id, label: undefined }));
+  edges = [
+    { a: 1, b: 2, type: 'different' },
+    { a: 2, b: 3, type: 'different' },
+    { a: 1, b: 3, type: 'different' },
+    { a: 3, b: 4, type: 'same' },
+    { a: 4, b: 5, type: 'different' }
+  ];
+  afterLoad();
+}
+
+function setExample3() {
+  nodes = [1, 2, 3, 4, 5, 6, 7].map(id => ({ id, label: undefined }));
+  edges = [
+    { a: 1, b: 2, type: 'same' },
+    { a: 2, b: 3, type: 'different' },
+    { a: 3, b: 4, type: 'same' },
+    { a: 4, b: 5, type: 'different' },
+    { a: 5, b: 1, type: 'same' },
+    { a: 6, b: 7, type: 'different' }
+  ];
+  afterLoad();
+}
+
+function afterLoad() {
+  pendingNode = null;
+  selectedEdgeKey = edges.length ? edgeKey(edges[0].a, edges[0].b) : null;
+  layoutNodes();
+  renderGraph();
+}
+
+document.getElementById('load-example-1').addEventListener('click', setExample1);
+document.getElementById('load-example-2').addEventListener('click', setExample2);
+document.getElementById('load-example-3').addEventListener('click', setExample3);
+
+document.getElementById('mode-examples').addEventListener('click', () => setMode('examples'));
+document.getElementById('mode-build').addEventListener('click', () => setMode('build'));
+
+function setMode(mode) {
+  currentMode = mode;
+  pendingNode = null;
+  document.getElementById('mode-examples').classList.toggle('active', mode === 'examples');
+  document.getElementById('mode-build').classList.toggle('active', mode === 'build');
+  document.getElementById('examples-controls').style.display = mode === 'examples' ? 'block' : 'none';
+  document.getElementById('build-controls').style.display = mode === 'build' ? 'block' : 'none';
+  renderGraph();
+}
+
+document.getElementById('add-node').addEventListener('click', () => {
+  const nextId = nodes.length ? Math.max(...nodes.map(n => n.id)) + 1 : 1;
+  nodes.push({ id: nextId, label: undefined });
+  layoutNodes(); renderGraph(); checkLayout();
+});
+document.getElementById('remove-node').addEventListener('click', () => {
+  if (!nodes.length) return;
+  const lastId = nodes[nodes.length - 1].id;
+  nodes = nodes.slice(0, -1);
+  edges = edges.filter(e => e.a !== lastId && e.b !== lastId);
+  if (!edges.some(e => edgeKey(e.a, e.b) === selectedEdgeKey)) {
+    selectedEdgeKey = edges.length ? edgeKey(edges[0].a, edges[0].b) : null;
+  }
+  layoutNodes(); renderGraph(); checkLayout();
+});
+document.getElementById('clear-graph').addEventListener('click', () => {
+  nodes = []; edges = []; pendingNode = null; selectedEdgeKey = null;
+  renderGraph();
+});
+document.getElementById('clear-labels').addEventListener('click', () => {
+  nodes.forEach(n => n.label = undefined);
+  layoutNodes();
+  renderGraph();
+  checkLayout();
+});
+document.getElementById('edge-same').addEventListener('click', () => {
+  pendingEdgeType = 'same';
+  document.getElementById('edge-same').classList.add('active');
+  document.getElementById('edge-diff').classList.remove('active');
+});
+document.getElementById('edge-diff').addEventListener('click', () => {
+  pendingEdgeType = 'different';
+  document.getElementById('edge-diff').classList.add('active');
+  document.getElementById('edge-same').classList.remove('active');
+});
+
+renderKey();
+setExample1();
+if (prefersReducedMotion) {
+  introLayer.innerHTML = '';
+  introLayer.style.opacity = '0';
+  mainLayer.style.opacity = '1';
+  introDone = true;
+} else {
+  playIntro();
+}
+
+</script>
+</body>
+</html>
