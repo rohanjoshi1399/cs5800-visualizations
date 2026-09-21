@@ -67,6 +67,12 @@ python -m http.server 8000
 
 ## Deployment
 
+**Live: https://cs5800-visualizations.vercel.app**
+
 Deployed on Vercel as a static site — no build command, repo root as the
-output directory. Pushes to the default branch ship to production; other
-branches get preview URLs.
+output directory. This repo is connected to the Vercel project, so pushes to
+`main` ship to production and other branches get preview URLs.
+
+Share the short URL above. The per-deployment URLs that the Vercel CLI and
+dashboard print (`cs5800-visualizations-<hash>-....vercel.app`) sit behind
+Vercel SSO and will bounce a logged-out student to a login page.
