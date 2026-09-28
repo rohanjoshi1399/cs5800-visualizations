@@ -168,11 +168,13 @@
       </div>
 
       <div id="examples-controls">
-        <div class="example-row">
-          <button id="load-example-1">Example 1</button>
-          <button id="load-example-2">Example 2</button>
-          <button id="load-example-3">Example 3</button>
+        <p class="section-label">pick a field of contestants</p>
+        <div class="example-row" role="group" aria-label="Choose a field of contestants">
+          <button id="load-example-1" aria-pressed="false">Example 1</button>
+          <button id="load-example-2" aria-pressed="false">Example 2</button>
+          <button id="load-example-3" aria-pressed="false">Example 3</button>
         </div>
+        <p class="hint" id="set-caption"></p>
       </div>
 
       <div id="build-controls" style="display:none;">
@@ -225,6 +227,7 @@ let currentMode = 'examples';
 let bestSeen = null;       // best finishing time the user has reached in this set
 let focusKey = null;
 let wantFocus = false;     // set by roster handlers, consumed by the next render
+let activeExample = null;  // null once the field has been edited by hand
 
 /* ---------- scheduling ---------- */
 
@@ -400,6 +403,7 @@ function renderRoster() {
         inp.dataset.focusKey = `${field}:${r.p.id}`;
         const apply = () => {
           r.p[field] = Math.max(1, Math.min(20, Math.round(Number(inp.value) || 1)));
+          activeExample = null;
           resetVerdict();
         };
         // live feedback without tearing down the field the caret is sitting in
@@ -535,6 +539,25 @@ function refresh() {
   renderRoster();
   updateReadouts();
   updateAddRemoveState();
+  updateExampleUI();
+}
+
+/* Which field is loaded is easy to lose track of once the lineup has been
+   shuffled around, so mark it on the button and say what is on screen. The
+   examples stay numbered rather than named -- labelling one "the one where
+   order does not matter" would answer question 5 on sight. */
+function updateExampleUI() {
+  for (let i = 1; i <= 3; i++) {
+    const b = document.getElementById('load-example-' + i);
+    const on = activeExample === i;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const n = people.length;
+  const what = n + ' contestant' + (n === 1 ? '' : 's');
+  document.getElementById('set-caption').textContent = activeExample
+    ? 'Example ' + activeExample + ' is loaded — ' + what + ', in any order you like.'
+    : 'Your own field — ' + what + '.';
 }
 
 function updateAddRemoveState() {
@@ -544,7 +567,8 @@ function updateAddRemoveState() {
 
 /* ---------- sets ---------- */
 
-function loadSet(defs) {
+function loadSet(defs, which) {
+  activeExample = which;
   people = defs.map((d, i) => ({ id: i + 1, name: d[0], swim: d[1], bike: d[2], run: d[3] }));
   order = people.map(p => p.id);
   bestSeen = null;
@@ -556,7 +580,7 @@ function loadSet(defs) {
 /* Swim time and bike-plus-run are deliberately uncorrelated here, so neither
    "fastest swimmer first" nor "slowest swimmer first" lands on the answer. */
 function setExample1() {
-  loadSet([['Ada', 7, 1, 1], ['Bo', 3, 9, 2], ['Cy', 1, 5, 1]]);
+  loadSet([['Ada', 7, 1, 1], ['Bo', 3, 9, 2], ['Cy', 1, 5, 1]], 1);
 }
 
 /* Five contestants, 120 lineups, and two pairs tied on bike-plus-run so the
@@ -565,13 +589,13 @@ function setExample1() {
    real room to improve rather than an answer sitting there on load. */
 function setExample2() {
   loadSet([['Pia', 2, 5, 3], ['Quinn', 6, 2, 2], ['Sol', 4, 3, 1],
-           ['Tam', 3, 1, 1], ['Rex', 1, 7, 1]]);
+           ['Tam', 3, 1, 1], ['Rex', 1, 7, 1]], 2);
 }
 
 /* Every contestant has the same bike-plus-run total, so every one of the 24
    lineups finishes at exactly the same moment. */
 function setExample3() {
-  loadSet([['Uma', 5, 4, 2], ['Vik', 2, 1, 5], ['Wren', 4, 3, 3], ['Xu', 1, 5, 1]]);
+  loadSet([['Uma', 5, 4, 2], ['Vik', 2, 1, 5], ['Wren', 4, 3, 3], ['Xu', 1, 5, 1]], 3);
 }
 
 /* ---------- controls ---------- */
@@ -601,6 +625,7 @@ document.getElementById('add-person').addEventListener('click', () => {
   const name = NAMES.find(n => !used.has(n)) || 'P' + id;
   people.push({ id, name, swim: 3, bike: 3, run: 2 });
   order.push(id);
+  activeExample = null;
   bestSeen = null;
   resetVerdict();
   refresh();
@@ -611,6 +636,7 @@ document.getElementById('remove-person').addEventListener('click', () => {
   const id = people[people.length - 1].id;
   people = people.filter(p => p.id !== id);
   order = order.filter(x => x !== id);
+  activeExample = null;
   bestSeen = null;
   resetVerdict();
   refresh();

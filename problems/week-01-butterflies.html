@@ -132,11 +132,13 @@
       </div>
 
       <div id="examples-controls">
-        <div class="example-row">
-          <button id="load-example-1">Example 1</button>
-          <button id="load-example-2">Example 2</button>
-          <button id="load-example-3">Example 3</button>
+        <p class="section-label">pick a set of judgments</p>
+        <div class="example-row" role="group" aria-label="Choose a set of judgments">
+          <button id="load-example-1" aria-pressed="false">Example 1</button>
+          <button id="load-example-2" aria-pressed="false">Example 2</button>
+          <button id="load-example-3" aria-pressed="false">Example 3</button>
         </div>
+        <p class="hint" id="set-caption"></p>
       </div>
 
       <div id="build-controls" style="display:none;">
@@ -193,6 +195,7 @@ let pendingNode = null;
 let selectedEdgeKey = null;
 let introDone = false;
 let focusKey = null;
+let activeExample = null;  // null once the set has been edited by hand
 let layoutMode = 'circle';
 let animFrame = null;
 
@@ -376,6 +379,24 @@ function toggleSplit() {
 
 // Called from renderGraph, so every code path keeps the button in sync.
 // Writes are guarded because the layout animation re-renders each frame.
+/* Which example is loaded is easy to lose track of once you start clicking,
+   so mark it on the button and spell out what is actually on screen. The
+   examples stay numbered rather than named -- calling one "the inconsistent
+   one" would answer question 3 before anyone had opened it. */
+function updateExampleUI() {
+  for (let i = 1; i <= 3; i++) {
+    const b = document.getElementById('load-example-' + i);
+    const on = activeExample === i;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+  const what = plural(nodes.length, 'specimen') + ', ' + plural(edges.length, 'judgment');
+  document.getElementById('set-caption').textContent = activeExample
+    ? 'Example ' + activeExample + ' is loaded — ' + what + '.'
+    : 'Your own set — ' + what + '.';
+}
+
 function updateSplitButton() {
   const btn = document.getElementById('reveal-split');
   const solved = allJudgmentsHold();
@@ -556,6 +577,7 @@ function renderGraph() {
   if (hadFocus) restoreFocus();
   updateStatus();
   updateSplitButton();
+  updateExampleUI();
   renderTray();
 }
 
@@ -651,6 +673,7 @@ function onNodeClick(id) {
       edges.push({ a: pendingNode, b: id, type: pendingEdgeType });
     }
     pendingNode = null;
+    activeExample = null;
     renderGraph();
     checkLayout();
     return;
@@ -733,7 +756,7 @@ function setExample1() {
     { a: 4, b: 5, type: 'same' },
     { a: 5, b: 6, type: 'different' }
   ];
-  afterLoad();
+  afterLoad(1);
 }
 
 function setExample2() {
@@ -745,7 +768,7 @@ function setExample2() {
     { a: 3, b: 4, type: 'same' },
     { a: 4, b: 5, type: 'different' }
   ];
-  afterLoad();
+  afterLoad(2);
 }
 
 function setExample3() {
@@ -758,10 +781,11 @@ function setExample3() {
     { a: 5, b: 1, type: 'same' },
     { a: 6, b: 7, type: 'different' }
   ];
-  afterLoad();
+  afterLoad(3);
 }
 
-function afterLoad() {
+function afterLoad(which) {
+  activeExample = which;
   pendingNode = null;
   selectedEdgeKey = edges.length ? edgeKey(edges[0].a, edges[0].b) : null;
   layoutNodes();
@@ -788,6 +812,7 @@ function setMode(mode) {
 document.getElementById('add-node').addEventListener('click', () => {
   const nextId = nodes.length ? Math.max(...nodes.map(n => n.id)) + 1 : 1;
   nodes.push({ id: nextId, label: undefined });
+  activeExample = null;
   layoutNodes(); renderGraph(); checkLayout();
 });
 document.getElementById('remove-node').addEventListener('click', () => {
@@ -798,10 +823,12 @@ document.getElementById('remove-node').addEventListener('click', () => {
   if (!edges.some(e => edgeKey(e.a, e.b) === selectedEdgeKey)) {
     selectedEdgeKey = edges.length ? edgeKey(edges[0].a, edges[0].b) : null;
   }
+  activeExample = null;
   layoutNodes(); renderGraph(); checkLayout();
 });
 document.getElementById('clear-graph').addEventListener('click', () => {
   nodes = []; edges = []; pendingNode = null; selectedEdgeKey = null;
+  activeExample = null;
   renderGraph();
 });
 document.getElementById('reveal-split').addEventListener('click', toggleSplit);
