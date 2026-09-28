@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Week 2 — Mini-triathlon scheduling | CS 5800</title>
+<meta name="description" content="Week 2: contestants share one pool but bike and run in parallel. Reorder the starts by hand and watch the finishing time move. An interactive model for CS 5800 recitation." />
+<meta name="color-scheme" content="light" />
+<meta property="og:title" content="Week 2 - Mini-triathlon scheduling | CS 5800" />
+<meta property="og:description" content="Contestants share one pool but bike and run in parallel. Reorder the starts by hand and watch the finishing time move." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="../shared/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/site.css">
+<style>
+
+  .layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  svg { width: 100%; height: auto; display: block; }
+
+  /* The pool is the contended resource; bike and run are deliberately given
+     unrelated colors so that grouping them stays the student's discovery. */
+  :root {
+    --swim: #3E6B4A;
+    --bike: #A8571E;
+    --run:  #4A6072;
+  }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+  .legend span { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--ink-soft); }
+  .swatch { width: 13px; height: 13px; border-radius: 2px; display: inline-block; }
+
+  .clock {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .clock-big {
+    font-family: 'Fraunces', serif; font-size: 1.9rem; font-weight: 600;
+    line-height: 1; color: var(--ink);
+  }
+  .clock-unit { font-size: 0.85rem; color: var(--ink-soft); }
+  .clock-best { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--ink-soft); }
+  .clock-best strong { color: var(--moss-deep); font-weight: 600; }
+
+  /* ---- roster ---- */
+
+  .roster { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .roster-head {
+    display: grid; grid-template-columns: 26px 1fr 152px 64px;
+    gap: 10px; align-items: center;
+    font-size: 0.72rem; color: var(--ink-soft); padding: 0 6px 6px;
+  }
+  .roster-row {
+    display: grid; grid-template-columns: 26px 1fr 152px 64px;
+    gap: 10px; align-items: center;
+    padding: 7px 6px; border-top: 1px solid var(--line);
+    transition: background 0.15s ease;
+  }
+  .roster-row.last-finisher { background: #F4E3DE; }
+
+  .pos { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--ink-soft); }
+  .who { font-family: 'Fraunces', serif; font-size: 1rem; }
+  .who small { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.72rem; color: var(--alert); margin-left: 7px; }
+
+  .times { display: flex; gap: 5px; }
+  .times em {
+    font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem;
+    padding: 3px 0; width: 46px; text-align: center; border-radius: 2px;
+    color: var(--paper);
+  }
+  .times em.sw { background: var(--swim); }
+  .times em.bk { background: var(--bike); }
+  .times em.rn { background: var(--run); }
+  .times input {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem;
+    width: 46px; padding: 2px 4px; text-align: center;
+    border: 1px solid var(--line); border-radius: 2px;
+    background: var(--paper); color: var(--ink);
+  }
+  .times input.sw { border-bottom: 3px solid var(--swim); }
+  .times input.bk { border-bottom: 3px solid var(--bike); }
+  .times input.rn { border-bottom: 3px solid var(--run); }
+
+  .movers { display: flex; gap: 4px; justify-content: flex-end; }
+  .movers button { padding: 3px 8px; font-size: 0.8rem; line-height: 1.1; }
+
+  /* ---- right panel ---- */
+
+  .mode-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .example-row, .build-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+  .status-box {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 2px;
+    padding: 14px 16px; font-size: 0.92rem; line-height: 1.5; margin-bottom: 12px;
+  }
+  .verdict-box {
+    border-radius: 2px; padding: 12px 14px; font-size: 0.9rem; line-height: 1.5;
+    margin-bottom: 12px; border: 1px solid var(--line); background: var(--paper);
+  }
+  .verdict-box.is-best { border-color: var(--moss); background: var(--moss-soft); }
+  .verdict-box.not-best { border-color: var(--rust); background: var(--rust-soft); }
+  .verdict-box.quiet { color: var(--ink-soft); }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sitebar">
+    <span class="course-mark">CS 5800 · Week 02</span>
+    <a href="../index.html">&larr; All problems</a>
+  </div>
+
+  <h1>Mini-triathlon scheduling</h1>
+  <div class="meta-strip">
+    <span class="tag">greedy</span>
+    <span class="tag">scheduling</span>
+  </div>
+
+  <div class="statement">
+    <p>Your friend is a camp counselor running a mini-triathlon: each contestant swims 20 laps, then bikes 10 miles, then runs 3 miles. Contestants are sent out in a staggered fashion, because <em>the pool holds one person at a time</em>. The first contestant swims, gets out, and starts biking; the moment the pool is free the second contestant starts swimming; and so on.</p>
+    <p>Each contestant has a projected swimming time, biking time, and running time. Once a contestant is out of the pool, nothing blocks them — any number of people can be biking and running at the same time.</p>
+    <p>The <em>completion time</em> of a schedule is the earliest moment at which every contestant has finished all three legs. Choose the order in which to send contestants out so the whole competition ends as early as possible, and give an efficient algorithm that produces such an order.</p>
+  </div>
+
+  <p class="subtitle">Reorder the starting lineup below and watch the finishing time move. The model schedules whatever order you give it and reports the result. It will not put anyone in order for you.</p>
+
+  <div class="divider" style="margin:24px 0;"></div>
+
+  <div class="layout">
+
+    <div class="panel">
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--swim)"></i> swimming (pool, one at a time)</span>
+        <span><i class="swatch" style="background:var(--bike)"></i> biking</span>
+        <span><i class="swatch" style="background:var(--run)"></i> running</span>
+      </div>
+
+      <svg id="chart" viewBox="0 0 660 300" role="img" aria-label="Schedule timeline"></svg>
+
+      <div class="roster">
+        <div class="roster-head">
+          <span>#</span>
+          <span>contestant</span>
+          <span>swim · bike · run</span>
+          <span></span>
+        </div>
+        <div id="roster"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="clock">
+        <span class="clock-big" id="finish-time">—</span>
+        <span class="clock-unit">minutes to finish everyone</span>
+      </div>
+      <p class="clock-best" id="best-note"></p>
+
+      <div class="divider"></div>
+
+      <p class="section-label">choose a mode</p>
+      <div class="mode-row">
+        <button id="mode-examples" class="active">Try an example</button>
+        <button id="mode-build">Build your own</button>
+      </div>
+
+      <div id="examples-controls">
+        <div class="example-row">
+          <button id="load-example-1">Example 1</button>
+          <button id="load-example-2">Example 2</button>
+          <button id="load-example-3">Example 3</button>
+        </div>
+      </div>
+
+      <div id="build-controls" style="display:none;">
+        <div class="build-row">
+          <button id="add-person">+ Add contestant</button>
+          <button id="remove-person">- Remove last</button>
+        </div>
+        <p class="hint">Edit any swim, bike, or run time directly in the roster. Times are whole minutes from 1 to 20, and the pool still holds one person at a time.</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <p class="section-label">this lineup</p>
+      <div id="status" class="status-box" role="status" aria-live="polite">No contestants yet.</div>
+
+      <div id="verdict" class="verdict-box quiet">Ask below once you think you have a good lineup.</div>
+      <button id="check-best" style="width:100%;margin-bottom:8px;">Can anyone finish sooner?</button>
+      <button id="shuffle" style="width:100%;">Shuffle the lineup</button>
+      <p class="hint" style="margin-top:8px;">The check only tells you whether some other order beats yours. It will not tell you which one.</p>
+    </div>
+
+  </div>
+
+  <div class="questions wrap-narrow" style="padding:0;">
+    <div class="divider" style="margin:34px 0 22px;"></div>
+    <h2>Questions to sit with</h2>
+    <ol>
+      <li>Example 1 has three contestants, so there are only six lineups. Try all six. What is the best finishing time, and what do the good lineups have in common?</li>
+      <li>Still in Example 1: does sending the fastest swimmer out first help? What about the slowest? Swimming time is the only thing anyone actually waits for, so why doesn't it settle the order?</li>
+      <li>The pool is the one resource people queue for. Once a contestant climbs out of it, what can still delay the moment the whole competition ends?</li>
+      <li>Example 2 has five contestants and 120 lineups, so trying them all is already unpleasant. If you were allowed to compute one number per contestant and sort by it, what number would you pick?</li>
+      <li>Example 3 is strange: try several lineups and the finishing time never moves. Look at the times and work out why. What does that tell you about which numbers actually drive the answer?</li>
+      <li>Take a lineup and swap two contestants who are next to each other. Exactly which contestants' finishing times can change, and which cannot? Use that to argue that a best lineup must have a particular shape.</li>
+      <li>Can the competition ever end before the total of everyone's swimming times plus the smallest bike-plus-run total in the field? Explain why not, then check whether your best lineup in Example 2 hits that bound.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+
+const NS = 'http://www.w3.org/2000/svg';
+const MAX_PEOPLE = 8;      // keeps the exhaustive check honest and the chart readable
+const chart = document.getElementById('chart');
+const rosterEl = document.getElementById('roster');
+
+let people = [];           // { id, name, swim, bike, run }
+let order = [];            // ids, in starting order
+let currentMode = 'examples';
+let bestSeen = null;       // best finishing time the user has reached in this set
+let focusKey = null;
+let wantFocus = false;     // set by roster handlers, consumed by the next render
+
+/* ---------- scheduling ---------- */
+
+function byId(id) { return people.find(p => p.id === id); }
+
+/* One pool, so swimming is strictly serial. Everything after the pool is
+   unconstrained, so each contestant just finishes their own bike and run. */
+function buildSchedule(seq) {
+  let pool = 0;
+  const rows = seq.map(p => {
+    const swimStart = pool;
+    const swimEnd = swimStart + p.swim;
+    pool = swimEnd;
+    const bikeEnd = swimEnd + p.bike;
+    const runEnd = bikeEnd + p.run;
+    return { p, swimStart, swimEnd, bikeEnd, runEnd };
+  });
+  const finish = rows.length ? Math.max(...rows.map(r => r.runEnd)) : 0;
+  return { rows, finish };
+}
+
+function finishOf(seq) {
+  let pool = 0, mk = 0;
+  for (const p of seq) { pool += p.swim; mk = Math.max(mk, pool + p.bike + p.run); }
+  return mk;
+}
+
+/* Searched exhaustively rather than by the intended rule, so the page never
+   has to contain the answer in a form a curious student could just read off. */
+function bestPossibleFinish() {
+  const list = order.map(byId);
+  if (!list.length) return 0;
+  let best = Infinity;
+  const arr = list.slice();
+  (function permute(k) {
+    if (k === arr.length) { best = Math.min(best, finishOf(arr)); return; }
+    for (let i = k; i < arr.length; i++) {
+      [arr[k], arr[i]] = [arr[i], arr[k]];
+      permute(k + 1);
+      [arr[k], arr[i]] = [arr[i], arr[k]];
+    }
+  })(0);
+  return best;
+}
+
+function currentSchedule() { return buildSchedule(order.map(byId)); }
+
+/* ---------- chart ---------- */
+
+function niceStep(span) {
+  const candidates = [1, 2, 5, 10, 20, 25, 50, 100];
+  for (const c of candidates) if (span / c <= 9) return c;
+  return 200;
+}
+
+function renderChart() {
+  chart.innerHTML = '';
+  const { rows, finish } = currentSchedule();
+
+  const L = 74, R = 642, top = 54, rowH = 40;
+  const H = top + Math.max(rows.length, 1) * rowH + 34;
+  chart.setAttribute('viewBox', '0 0 660 ' + H);
+
+  if (!rows.length) {
+    add('text', { x: 330, y: 90, 'text-anchor': 'middle', fill: '#8A8365',
+      'font-family': 'IBM Plex Sans, sans-serif', 'font-size': 13 }, 'No contestants in this set yet');
+    return;
+  }
+
+  const span = Math.max(finish, 1);
+  const x = t => L + (t / span) * (R - L);
+
+  // time axis along the top
+  const step = niceStep(span);
+  for (let t = 0; t <= span; t += step) {
+    add('line', { x1: x(t), y1: 44, x2: x(t), y2: H - 26, stroke: '#B7AD8E',
+      'stroke-width': 1, 'stroke-dasharray': '2,5' });
+    add('text', { x: x(t), y: 34, 'text-anchor': 'middle', fill: '#52584C',
+      'font-family': 'IBM Plex Mono, monospace', 'font-size': 10 }, String(t));
+  }
+  add('text', { x: L, y: 17, 'text-anchor': 'start', fill: '#52584C',
+    'font-family': 'IBM Plex Sans, sans-serif', 'font-size': 10.5 }, 'minutes');
+
+  rows.forEach((r, i) => {
+    const yMid = top + i * rowH + rowH / 2;
+    const bh = 19;
+    const isLast = r.runEnd === finish;
+
+    add('text', { x: 64, y: yMid + 4, 'text-anchor': 'end', fill: isLast ? '#8E2B1F' : '#21281F',
+      'font-family': 'Fraunces, serif', 'font-size': 13.5 }, r.p.name);
+
+    const segs = [
+      { a: r.swimStart, b: r.swimEnd, fill: '#3E6B4A', v: r.p.swim },
+      { a: r.swimEnd,   b: r.bikeEnd, fill: '#A8571E', v: r.p.bike },
+      { a: r.bikeEnd,   b: r.runEnd,  fill: '#4A6072', v: r.p.run  }
+    ];
+    segs.forEach(s => {
+      const w = x(s.b) - x(s.a);
+      add('rect', { x: x(s.a), y: yMid - bh / 2, width: Math.max(w, 1), height: bh,
+        rx: 2, fill: s.fill });
+      if (w > 20) {
+        add('text', { x: (x(s.a) + x(s.b)) / 2, y: yMid + 4, 'text-anchor': 'middle',
+          fill: '#E7E1CE', 'font-family': 'IBM Plex Mono, monospace', 'font-size': 10.5 },
+          String(s.v));
+      }
+    });
+
+    if (isLast) {
+      add('text', { x: x(r.runEnd) + 6, y: yMid + 4, 'text-anchor': 'start', fill: '#8E2B1F',
+        'font-family': 'IBM Plex Sans, sans-serif', 'font-size': 10.5, 'font-weight': 600 },
+        'last');
+    }
+  });
+
+  // the finishing line
+  add('line', { x1: x(finish), y1: 44, x2: x(finish), y2: H - 26, stroke: '#8E2B1F',
+    'stroke-width': 2 });
+  add('text', { x: x(finish), y: H - 12, 'text-anchor': 'end', fill: '#8E2B1F',
+    'font-family': 'IBM Plex Mono, monospace', 'font-size': 11, 'font-weight': 600 },
+    'everyone done at ' + finish);
+
+  chart.setAttribute('aria-label', describeSchedule(rows, finish));
+
+  function add(tag, attrs, text) {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (text !== undefined) el.textContent = text;
+    chart.appendChild(el);
+    return el;
+  }
+}
+
+function describeSchedule(rows, finish) {
+  const parts = rows.map((r, i) =>
+    `${i + 1}. ${r.p.name} swims ${r.swimStart} to ${r.swimEnd}, finishes at ${r.runEnd}`);
+  return `Schedule timeline. ${parts.join('. ')}. Everyone is done at ${finish} minutes.`;
+}
+
+/* ---------- roster ---------- */
+
+function renderRoster() {
+  const hadFocus = wantFocus || rosterEl.contains(document.activeElement);
+  wantFocus = false;
+  rosterEl.innerHTML = '';
+  const { rows, finish } = currentSchedule();
+
+  rows.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'roster-row' + (r.runEnd === finish ? ' last-finisher' : '');
+
+    const pos = document.createElement('span');
+    pos.className = 'pos';
+    pos.textContent = String(i + 1);
+
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = r.p.name;
+    if (r.runEnd === finish) {
+      const tagEl = document.createElement('small');
+      tagEl.textContent = 'finishes last';
+      who.appendChild(tagEl);
+    }
+
+    const times = document.createElement('span');
+    times.className = 'times';
+    [['swim', 'sw'], ['bike', 'bk'], ['run', 'rn']].forEach(([field, cls]) => {
+      if (currentMode === 'build') {
+        const inp = document.createElement('input');
+        inp.type = 'number'; inp.min = '1'; inp.max = '20';
+        inp.className = cls;
+        inp.value = r.p[field];
+        inp.setAttribute('aria-label', `${r.p.name} ${field} time in minutes`);
+        inp.dataset.focusKey = `${field}:${r.p.id}`;
+        const apply = () => {
+          r.p[field] = Math.max(1, Math.min(20, Math.round(Number(inp.value) || 1)));
+          resetVerdict();
+        };
+        // live feedback without tearing down the field the caret is sitting in
+        inp.addEventListener('input', () => {
+          apply();
+          renderChart();
+          updateReadouts();
+        });
+        // on commit, rebuild so the row highlight and ordering catch up
+        inp.addEventListener('change', () => {
+          apply();
+          inp.value = r.p[field];
+          focusKey = inp.dataset.focusKey;
+          wantFocus = true;
+          refresh();
+        });
+        times.appendChild(inp);
+      } else {
+        const em = document.createElement('em');
+        em.className = cls;
+        em.textContent = r.p[field];
+        em.title = `${field}: ${r.p[field]} min`;
+        times.appendChild(em);
+      }
+    });
+
+    const movers = document.createElement('span');
+    movers.className = 'movers';
+    movers.appendChild(moveButton('▲', r.p, i, -1, i === 0));
+    movers.appendChild(moveButton('▼', r.p, i, 1, i === rows.length - 1));
+
+    row.append(pos, who, times, movers);
+    rosterEl.appendChild(row);
+  });
+
+  if (hadFocus) restoreFocus();
+}
+
+function moveButton(glyph, person, index, delta, disabled) {
+  const b = document.createElement('button');
+  b.textContent = glyph;
+  b.disabled = disabled;
+  b.setAttribute('aria-label',
+    'Move ' + person.name + (delta < 0 ? ' earlier' : ' later') + ' in the starting order');
+  b.dataset.focusKey = (delta < 0 ? 'up:' : 'down:') + person.id;
+  b.addEventListener('click', () => {
+    focusKey = b.dataset.focusKey;
+    wantFocus = true;
+    moveTo(index, index + delta);
+  });
+  return b;
+}
+
+function moveTo(from, to) {
+  if (to < 0 || to >= order.length) return;
+  const [id] = order.splice(from, 1);
+  order.splice(to, 0, id);
+  resetVerdict();
+  refresh();
+}
+
+/* The roster is rebuilt on every change, so put focus back where it was --
+   otherwise nudging someone up three places means re-finding the button
+   three times. */
+function restoreFocus() {
+  if (!focusKey) return;
+  let el = rosterEl.querySelector(`[data-focus-key="${focusKey}"]`);
+  if (el && el.disabled) {
+    // the contestant reached an end of the lineup; that arrow is gone now
+    const twin = focusKey.startsWith('up:')
+      ? 'down:' + focusKey.slice(3)
+      : 'up:' + focusKey.slice(5);
+    el = rosterEl.querySelector(`[data-focus-key="${twin}"]`);
+    if (el) focusKey = twin;
+  }
+  if (el && !el.disabled) el.focus({ preventScroll: true });
+  else focusKey = null;
+}
+
+/* ---------- readouts ---------- */
+
+function updateReadouts() {
+  const { rows, finish } = currentSchedule();
+  document.getElementById('finish-time').textContent = rows.length ? finish : '—';
+
+  const bestNote = document.getElementById('best-note');
+  if (!rows.length) { bestNote.textContent = ''; }
+  else if (bestSeen !== null && finish > bestSeen) {
+    bestNote.innerHTML = 'best you have reached in this set: <strong>' + bestSeen + '</strong>';
+  } else {
+    bestNote.innerHTML = 'that is your best so far in this set';
+  }
+
+  const box = document.getElementById('status');
+  if (!rows.length) { box.textContent = 'No contestants yet.'; return; }
+  const totalSwim = rows.reduce((a, r) => a + r.p.swim, 0);
+  const last = rows.find(r => r.runEnd === finish);
+  box.textContent =
+    `${rows.length} contestants. The pool is busy for ${totalSwim} minutes straight, ` +
+    `and ${last.p.name} is the one who finishes last, at ${finish}.`;
+}
+
+function resetVerdict() {
+  const v = document.getElementById('verdict');
+  v.className = 'verdict-box quiet';
+  v.textContent = 'Ask below once you think you have a good lineup.';
+}
+
+function checkBest() {
+  const { rows, finish } = currentSchedule();
+  const v = document.getElementById('verdict');
+  if (!rows.length) {
+    v.className = 'verdict-box quiet';
+    v.textContent = 'Add some contestants first.';
+    return;
+  }
+  const best = bestPossibleFinish();
+  if (finish <= best) {
+    v.className = 'verdict-box is-best';
+    v.textContent = `No. ${finish} minutes is the best anyone can do with these contestants. ` +
+      `Can you say what makes this lineup work?`;
+  } else {
+    v.className = 'verdict-box not-best';
+    v.textContent = `Yes. Some lineup finishes sooner than ${finish}. ` +
+      `Which pair would you try swapping first?`;
+  }
+}
+
+function refresh() {
+  const { rows, finish } = currentSchedule();
+  if (rows.length && (bestSeen === null || finish < bestSeen)) bestSeen = finish;
+  renderChart();
+  renderRoster();
+  updateReadouts();
+  updateAddRemoveState();
+}
+
+function updateAddRemoveState() {
+  document.getElementById('add-person').disabled = people.length >= MAX_PEOPLE;
+  document.getElementById('remove-person').disabled = people.length === 0;
+}
+
+/* ---------- sets ---------- */
+
+function loadSet(defs) {
+  people = defs.map((d, i) => ({ id: i + 1, name: d[0], swim: d[1], bike: d[2], run: d[3] }));
+  order = people.map(p => p.id);
+  bestSeen = null;
+  focusKey = null;
+  resetVerdict();
+  refresh();
+}
+
+/* Swim time and bike-plus-run are deliberately uncorrelated here, so neither
+   "fastest swimmer first" nor "slowest swimmer first" lands on the answer. */
+function setExample1() {
+  loadSet([['Ada', 7, 1, 1], ['Bo', 3, 9, 2], ['Cy', 1, 5, 1]]);
+}
+
+/* Five contestants, 120 lineups, and two pairs tied on bike-plus-run so the
+   tie-breaking question comes up on its own. Deliberately laid out in the
+   worst of the 120 orders (24 minutes against an optimum of 18) so there is
+   real room to improve rather than an answer sitting there on load. */
+function setExample2() {
+  loadSet([['Pia', 2, 5, 3], ['Quinn', 6, 2, 2], ['Sol', 4, 3, 1],
+           ['Tam', 3, 1, 1], ['Rex', 1, 7, 1]]);
+}
+
+/* Every contestant has the same bike-plus-run total, so every one of the 24
+   lineups finishes at exactly the same moment. */
+function setExample3() {
+  loadSet([['Uma', 5, 4, 2], ['Vik', 2, 1, 5], ['Wren', 4, 3, 3], ['Xu', 1, 5, 1]]);
+}
+
+/* ---------- controls ---------- */
+
+document.getElementById('load-example-1').addEventListener('click', setExample1);
+document.getElementById('load-example-2').addEventListener('click', setExample2);
+document.getElementById('load-example-3').addEventListener('click', setExample3);
+
+document.getElementById('mode-examples').addEventListener('click', () => setMode('examples'));
+document.getElementById('mode-build').addEventListener('click', () => setMode('build'));
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-examples').classList.toggle('active', mode === 'examples');
+  document.getElementById('mode-build').classList.toggle('active', mode === 'build');
+  document.getElementById('examples-controls').style.display = mode === 'examples' ? 'block' : 'none';
+  document.getElementById('build-controls').style.display = mode === 'build' ? 'block' : 'none';
+  refresh();
+}
+
+const NAMES = ['Ada', 'Bo', 'Cy', 'Dee', 'Eli', 'Fen', 'Gus', 'Hal'];
+
+document.getElementById('add-person').addEventListener('click', () => {
+  if (people.length >= MAX_PEOPLE) return;
+  const id = people.length ? Math.max(...people.map(p => p.id)) + 1 : 1;
+  const used = new Set(people.map(p => p.name));
+  const name = NAMES.find(n => !used.has(n)) || 'P' + id;
+  people.push({ id, name, swim: 3, bike: 3, run: 2 });
+  order.push(id);
+  bestSeen = null;
+  resetVerdict();
+  refresh();
+});
+
+document.getElementById('remove-person').addEventListener('click', () => {
+  if (!people.length) return;
+  const id = people[people.length - 1].id;
+  people = people.filter(p => p.id !== id);
+  order = order.filter(x => x !== id);
+  bestSeen = null;
+  resetVerdict();
+  refresh();
+});
+
+document.getElementById('check-best').addEventListener('click', checkBest);
+
+document.getElementById('shuffle').addEventListener('click', () => {
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  focusKey = null;
+  resetVerdict();
+  refresh();
+});
+
+setExample1();
+
+</script>
+</body>
+</html>
