@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Week 3 — Winter roads north | CS 5800</title>
+<meta name="description" content="Week 3: road travel times depend on when you set out, and you can only learn them by querying a web site. Drive the route yourself and watch the clock. An interactive model for CS 5800 recitation." />
+<meta name="color-scheme" content="light" />
+<meta property="og:title" content="Week 3 - Winter roads north | CS 5800" />
+<meta property="og:description" content="Road travel times depend on when you set out, and you only learn them by querying. Drive the route yourself and watch the clock." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="../shared/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/site.css">
+<style>
+
+  .layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+  #map [tabindex]:focus-visible { outline: 2px solid var(--moss-deep); outline-offset: 3px; }
+
+  .clock {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px;
+  }
+  .clock-big {
+    font-family: 'Fraunces', serif; font-size: 1.9rem; font-weight: 600;
+    line-height: 1; color: var(--ink);
+  }
+  .clock-unit { font-size: 0.85rem; color: var(--ink-soft); }
+  .clock-where { font-size: 0.9rem; color: var(--ink-soft); margin: 0 0 12px; }
+
+  .route-line {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem;
+    color: var(--ink); word-break: break-word;
+  }
+
+  /* ---- the web site's answers ---- */
+
+  .oracle { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .oracle-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 8px; gap: 12px; flex-wrap: wrap;
+  }
+  .oracle-title { font-size: 0.8rem; color: var(--ink-soft); }
+  .oracle-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--ink-soft); }
+  .log {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 2px;
+    padding: 10px 12px; max-height: 188px; overflow-y: auto;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; line-height: 1.75;
+  }
+  .log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log .q { color: var(--ink-soft); }
+  .log .a { color: var(--moss-deep); font-weight: 500; }
+  .log .undone { opacity: 0.42; text-decoration: line-through; }
+  .log .empty { color: var(--unknown); font-family: 'IBM Plex Sans', sans-serif; }
+
+  /* ---- right panel ---- */
+
+  .mode-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .example-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+  .status-box {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 2px;
+    padding: 14px 16px; font-size: 0.92rem; line-height: 1.5; margin-bottom: 12px;
+  }
+  .status-box.arrived { border-color: var(--moss); background: var(--moss-soft); }
+  .status-box.stuck { border-color: var(--alert); background: #F4E3DE; }
+
+  .verdict-box {
+    border-radius: 2px; padding: 12px 14px; font-size: 0.9rem; line-height: 1.5;
+    margin-bottom: 12px; border: 1px solid var(--line); background: var(--paper);
+  }
+  .verdict-box.is-best { border-color: var(--moss); background: var(--moss-soft); }
+  .verdict-box.not-best { border-color: var(--rust); background: var(--rust-soft); }
+  .verdict-box.quiet { color: var(--ink-soft); }
+
+  .btn-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .btn-row button { flex: 1; }
+
+  /* ---- the gated schedule table ---- */
+
+  #schedule { margin-top: 12px; display: none; }
+  #schedule.open { display: block; }
+  table.sched {
+    width: 100%; border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.74rem;
+  }
+  table.sched th, table.sched td {
+    border: 1px solid var(--line); padding: 4px 6px; text-align: center;
+  }
+  table.sched th { background: var(--paper-deep); color: var(--ink-soft); font-weight: 500; }
+  table.sched td.road { text-align: left; background: var(--paper); }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sitebar">
+    <span class="course-mark">CS 5800 · Week 03</span>
+    <a href="../index.html">&larr; All problems</a>
+  </div>
+
+  <h1>Winter roads north</h1>
+  <div class="meta-strip">
+    <span class="tag">graphs</span>
+    <span class="tag">shortest paths</span>
+  </div>
+
+  <div class="statement">
+    <p>Your friends are planning an expedition to a small town deep in the Canadian north. They have drawn up a directed graph whose nodes are intermediate destinations and whose edges are the roads between them.</p>
+    <p>Winter weather makes these roads slow, and how slow depends on when you travel. A travel web site will answer queries: given a road <em>e = (v, w)</em> and a proposed departure time <em>t</em> from <em>v</em>, it returns <em>f<sub>e</sub>(t)</em>, the predicted arrival time at <em>w</em>. The site guarantees <em>f<sub>e</sub>(t) &ge; t</em> for every road and every time, so you cannot travel backward in time, and that <em>f<sub>e</sub></em> is monotone increasing, so you never arrive earlier by setting out later. Beyond those two promises the functions can be anything.</p>
+    <p>They leave the start at time 0. Find the fastest way through the graph to the destination, with an algorithm that runs in polynomial time, counting one query to the web site as one computational step.</p>
+  </div>
+
+  <p class="subtitle">Drive a route yourself, one road at a time. Every road you take costs a query, and the web site answers only for the time you are actually standing there. Nothing here plans the trip for you.</p>
+
+  <div class="divider" style="margin:24px 0;"></div>
+
+  <div class="layout">
+
+    <div class="panel">
+      <svg id="map" viewBox="0 0 660 360" role="group"
+           aria-label="Road map. Your position is marked; roads leading out of it can be taken. Tab to a reachable destination and press Enter to drive there."></svg>
+
+      <div class="oracle">
+        <div class="oracle-head">
+          <span class="oracle-title">what the web site has told you</span>
+          <span class="oracle-count" id="query-count">0 queries</span>
+        </div>
+        <div class="log" id="log" role="log" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="clock">
+        <span class="clock-big" id="clock">0</span>
+        <span class="clock-unit">on the clock</span>
+      </div>
+      <p class="clock-where" id="where">You are at the start.</p>
+      <p class="route-line" id="route">S</p>
+
+      <div class="divider"></div>
+
+      <p class="section-label">pick a map</p>
+      <div class="example-row" role="group" aria-label="Choose a map">
+        <button id="load-example-1" aria-pressed="false">Example 1</button>
+        <button id="load-example-2" aria-pressed="false">Example 2</button>
+        <button id="load-example-3" aria-pressed="false">Example 3</button>
+      </div>
+      <p class="hint" id="set-caption"></p>
+
+      <div class="divider"></div>
+
+      <p class="section-label">your trip</p>
+      <div id="status" class="status-box" role="status" aria-live="polite">Pick a road out of the start.</div>
+
+      <div class="btn-row">
+        <button id="undo">Undo last road</button>
+        <button id="restart">Start over</button>
+      </div>
+
+      <div id="verdict" class="verdict-box quiet">Reach the destination, then ask.</div>
+      <button id="check-best" style="width:100%;margin-bottom:8px;" disabled>Could anyone arrive sooner?</button>
+      <button id="reveal-sched" style="width:100%;" disabled>Show every road's schedule</button>
+      <p class="hint" style="margin-top:8px;">Both unlock once you have reached the destination at least once. The check says only whether some route beats yours, never which one.</p>
+
+      <div id="schedule"></div>
+    </div>
+
+  </div>
+
+  <div class="questions wrap-narrow" style="padding:0;">
+    <div class="divider" style="margin:34px 0 22px;"></div>
+    <h2>Questions to sit with</h2>
+    <ol>
+      <li>Example 1 has only two routes. Drive both. The first road of the winning route is <em>not</em> the road that gets you somewhere soonest, so what is wrong with the rule "always drive to whichever place you can reach earliest"?</li>
+      <li>Still in Example 1: the last road takes 2 on one route and 20 on the other. Is that road fast or slow? A road's travel time is not a property of the road alone, so what is it a property of?</li>
+      <li>You cannot ask the web site what a road costs without naming a departure time. That means you cannot label each edge with a number and then run a shortest-path algorithm you already know. What part of such an algorithm can you still keep, and what has to change?</li>
+      <li>In Example 2 two different routes reach the destination at exactly the same moment, even though one of them got to an intermediate town a full unit earlier. Why didn't arriving earlier help? Could arriving somewhere earlier ever make your <em>final</em> arrival later?</li>
+      <li>The site promises that <em>f<sub>e</sub></em> is monotone increasing. Take that promise away: invent a road where setting out later gets you there earlier. Show how your method from question 3 now returns the wrong answer.</li>
+      <li>In Example 3 the route with the fewest roads is not the fastest. Look at your query count after finding the best route by hand. How many queries should a good algorithm need, and in terms of what quantities?</li>
+      <li>Someone hands you a route and claims it is the fastest. How many queries does it take to work out when that route arrives? Is that the same as confirming nothing beats it?</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+
+const NS = 'http://www.w3.org/2000/svg';
+const INF = Infinity;
+const map = document.getElementById('map');
+const logEl = document.getElementById('log');
+
+/* Each road's travel time is a function of when you set out. Every kind here
+   satisfies the web site's two promises: you never arrive before you left,
+   and setting out later never gets you there earlier.
+     fixed : the same journey all year
+     steps : the weather turns at a threshold and the road gets slower
+     opens : nothing crosses before a set time, so an early arrival just waits */
+function arriveAt(fn, t) {
+  if (fn.k === 'fixed') return t + fn.c;
+  if (fn.k === 'opens') return Math.max(t, fn.at) + fn.c;
+  for (const [lim, c] of fn.steps) if (t < lim) return t + c;
+  return t + fn.steps[fn.steps.length - 1][1];
+}
+
+const MAPS = {
+  1: {
+    nodes: { S: [60, 180], A: [230, 85], B: [230, 275], C: [410, 180], T: [585, 180] },
+    roads: [
+      ['S', 'A', { k: 'fixed', c: 2 }],
+      ['S', 'B', { k: 'fixed', c: 6 }],
+      ['A', 'C', { k: 'fixed', c: 9 }],
+      ['B', 'C', { k: 'fixed', c: 1 }],
+      ['C', 'T', { k: 'steps', steps: [[10, 2], [INF, 20]] }]
+    ]
+  },
+  2: {
+    nodes: { S: [55, 180], A: [195, 85], B: [195, 275], C: [365, 108], D: [365, 258], T: [585, 180] },
+    roads: [
+      ['S', 'A', { k: 'fixed', c: 3 }],
+      ['S', 'B', { k: 'fixed', c: 5 }],
+      ['A', 'C', { k: 'fixed', c: 4 }],
+      ['B', 'C', { k: 'fixed', c: 1 }],
+      ['A', 'D', { k: 'fixed', c: 12 }],
+      ['B', 'D', { k: 'fixed', c: 2 }],
+      ['C', 'T', { k: 'opens', at: 15, c: 2 }],
+      ['D', 'T', { k: 'fixed', c: 6 }]
+    ]
+  },
+  3: {
+    nodes: { S: [50, 180], A: [175, 85], B: [175, 282], C: [320, 85], D: [455, 138], E: [320, 282], T: [592, 188] },
+    roads: [
+      ['S', 'A', { k: 'fixed', c: 2 }],
+      ['S', 'B', { k: 'fixed', c: 4 }],
+      ['A', 'C', { k: 'steps', steps: [[4, 2], [INF, 14]] }],
+      ['B', 'C', { k: 'fixed', c: 1 }],
+      ['A', 'E', { k: 'fixed', c: 9 }],
+      ['B', 'E', { k: 'fixed', c: 3 }],
+      ['C', 'D', { k: 'fixed', c: 2 }],
+      ['D', 'T', { k: 'fixed', c: 1 }],
+      ['E', 'T', { k: 'steps', steps: [[8, 3], [INF, 25]] }]
+    ]
+  }
+};
+
+let current = null;        // the loaded map
+let route = ['S'];         // towns visited, in order
+let times = [0];           // arrival time at each town in route
+let queries = [];          // { from, to, t, arrived, undone }
+let bestArrival = null;    // earliest arrival the user has managed on this map
+let reachedT = false;      // gates the check and the schedule table
+let activeExample = null;
+let focusKey = null;
+let wantFocus = false;
+
+function at() { return route[route.length - 1]; }
+function now() { return times[times.length - 1]; }
+function roadsOut(town) { return current.roads.filter(r => r[0] === town); }
+
+/* Where you could go next: a road out of here to a town you have not already
+   passed through. Revisiting could never help, since the clock only moves
+   forward. */
+function nextHops() {
+  if (at() === 'T') return [];
+  return roadsOut(at()).filter(r => !route.includes(r[1]));
+}
+
+/* ---------- map ---------- */
+
+function renderMap() {
+  const hadFocus = map.contains(document.activeElement);
+  map.innerHTML = '';
+
+  const defs = el('defs');
+  [['arrow', '#8A8365'], ['arrow-on', '#3E6B4A'], ['arrow-open', '#A8571E']].forEach(([id, col]) => {
+    const m = el('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5,
+      markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' });
+    m.appendChild(el('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: col }));
+    defs.appendChild(m);
+  });
+  map.appendChild(defs);
+
+  const taken = new Set();
+  for (let i = 0; i + 1 < route.length; i++) taken.add(route[i] + '>' + route[i + 1]);
+  const open = new Set(nextHops().map(r => r[0] + '>' + r[1]));
+
+  current.roads.forEach(([u, v, fn]) => {
+    const key = u + '>' + v;
+    const isTaken = taken.has(key);
+    const isOpen = open.has(key);
+    const [x1, y1] = current.nodes[u], [x2, y2] = current.nodes[v];
+
+    // pull the line back to the circle edges so the arrowhead is visible
+    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+    const r = 24;
+    const ax = x1 + (dx / len) * r, ay = y1 + (dy / len) * r;
+    const bx = x2 - (dx / len) * r, by = y2 - (dy / len) * r;
+
+    const stroke = isTaken ? '#3E6B4A' : (isOpen ? '#A8571E' : '#B7AD8E');
+    map.appendChild(el('line', {
+      x1: ax, y1: ay, x2: bx, y2: by, stroke,
+      'stroke-width': isTaken ? 3.4 : (isOpen ? 2.4 : 1.6),
+      'stroke-dasharray': isOpen && !isTaken ? '7,5' : null,
+      'marker-end': 'url(#' + (isTaken ? 'arrow-on' : isOpen ? 'arrow-open' : 'arrow') + ')'
+    }));
+
+    // only annotate what the web site has actually told you
+    const q = lastQueryFor(u, v);
+    if (q) {
+      const mx = (ax + bx) / 2, my = (ay + by) / 2;
+      const label = '+' + (q.arrived - q.t);
+      const w = label.length * 7 + 12;
+      map.appendChild(el('rect', { x: mx - w / 2, y: my - 9, width: w, height: 18, rx: 2,
+        fill: '#DCD4BA', stroke, 'stroke-width': 1 }));
+      map.appendChild(txt(label, mx, my + 4, {
+        fill: isTaken ? '#2C4F36' : '#52584C', 'font-size': 10.5,
+        'font-family': 'IBM Plex Mono, monospace' }));
+    }
+  });
+
+  Object.entries(current.nodes).forEach(([id, [x, y]]) => {
+    const isHere = id === at();
+    const visited = route.includes(id);
+    const canGo = nextHops().some(r => r[1] === id);
+    const isEnd = id === 'T';
+
+    let fill = '#E7E1CE', stroke = '#B7AD8E', sw = 1.6;
+    if (visited) { fill = '#DCE7DD'; stroke = '#3E6B4A'; sw = 2; }
+    if (canGo) { stroke = '#A8571E'; sw = 2.4; }
+    if (isHere) { fill = '#3E6B4A'; stroke = '#2C4F36'; sw = 3; }
+
+    const g = el('g', { transform: `translate(${x},${y})` });
+    if (isEnd) g.appendChild(el('circle', { cx: 0, cy: 0, r: 27, fill: 'none',
+      stroke: isHere ? '#2C4F36' : '#8A8365', 'stroke-width': 1,
+      'stroke-dasharray': '3,4' }));
+    g.appendChild(el('circle', { cx: 0, cy: 0, r: 22, fill, stroke, 'stroke-width': sw }));
+    g.appendChild(txt(id, 0, 5, { fill: isHere ? '#E7E1CE' : '#21281F',
+      'font-size': 14, 'font-family': 'Fraunces, serif' }));
+
+    const arrivedAt = visited ? times[route.indexOf(id)] : null;
+    if (arrivedAt !== null) {
+      g.appendChild(txt('t=' + arrivedAt, 0, 40, { fill: '#52584C', 'font-size': 10.5,
+        'font-family': 'IBM Plex Mono, monospace' }));
+    }
+
+    if (canGo) {
+      g.style.cursor = 'pointer';
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('role', 'button');
+      g.dataset.focusKey = 'go:' + id;
+      g.setAttribute('aria-label',
+        `Drive from ${at()} to ${id}. The web site has not been asked about this road at time ${now()} yet.`);
+      const go = () => { focusKey = 'go:' + id; wantFocus = true; drive(id); };
+      g.addEventListener('click', go);
+      g.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); }
+      });
+    }
+    map.appendChild(g);
+  });
+
+  if (hadFocus || wantFocus) restoreFocus();
+  wantFocus = false;
+
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in (attrs || {})) if (attrs[k] !== null) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function txt(s, x, y, attrs) {
+    const e = el('text', Object.assign({ x, y, 'text-anchor': 'middle' }, attrs));
+    e.textContent = s;
+    return e;
+  }
+}
+
+function restoreFocus() {
+  if (!focusKey) return;
+  let e = map.querySelector(`[data-focus-key="${focusKey}"]`);
+  // Once you drive somewhere, that town is where you stand, so it stops being
+  // a button. Fall through to the first road out of here instead, so a
+  // keyboard route can be driven end to end without re-finding the map.
+  if (!e) e = map.querySelector('[data-focus-key^="go:"]');
+  if (e) { focusKey = e.dataset.focusKey; e.focus({ preventScroll: true }); }
+  else focusKey = null;
+}
+
+/* ---------- driving ---------- */
+
+function lastQueryFor(u, v) {
+  for (let i = queries.length - 1; i >= 0; i--) {
+    const q = queries[i];
+    if (!q.undone && q.from === u && q.to === v) return q;
+  }
+  return null;
+}
+
+function drive(to) {
+  const road = roadsOut(at()).find(r => r[1] === to);
+  if (!road) return;
+  const t = now();
+  const arrived = arriveAt(road[2], t);
+  queries.push({ from: at(), to, t, arrived, undone: false });
+  route.push(to);
+  times.push(arrived);
+  if (to === 'T') {
+    reachedT = true;
+    if (bestArrival === null || arrived < bestArrival) bestArrival = arrived;
+  }
+  resetVerdict();
+  refresh();
+}
+
+function undo() {
+  if (route.length < 2) return;
+  route.pop();
+  times.pop();
+  for (let i = queries.length - 1; i >= 0; i--) {
+    if (!queries[i].undone) { queries[i].undone = true; break; }
+  }
+  focusKey = null;
+  resetVerdict();
+  refresh();
+}
+
+function restart() {
+  route = ['S'];
+  times = [0];
+  queries.forEach(q => q.undone = true);
+  focusKey = null;
+  resetVerdict();
+  refresh();
+}
+
+/* ---------- the optimum, found by looking at every route ---------- */
+
+/* Enumerated rather than computed by the intended method, so the page does
+   not hold the answer in a form that can simply be read off. */
+function bestPossible() {
+  let best = INF;
+  (function walk(town, t, seen) {
+    if (town === 'T') { best = Math.min(best, t); return; }
+    for (const [u, v, fn] of current.roads) {
+      if (u !== town || seen.has(v)) continue;
+      seen.add(v);
+      walk(v, arriveAt(fn, t), seen);
+      seen.delete(v);
+    }
+  })('S', 0, new Set(['S']));
+  return best;
+}
+
+/* ---------- readouts ---------- */
+
+function renderLog() {
+  logEl.innerHTML = '';
+  if (!queries.length) {
+    const d = document.createElement('div');
+    d.className = 'empty';
+    d.textContent = 'You have not asked the web site anything yet.';
+    logEl.appendChild(d);
+  } else {
+    queries.forEach(q => {
+      const d = document.createElement('div');
+      if (q.undone) d.className = 'undone';
+      const qs = document.createElement('span');
+      qs.className = 'q';
+      qs.textContent = `f(${q.from}→${q.to}, leave ${q.t})`;
+      const as = document.createElement('span');
+      as.className = 'a';
+      as.textContent = ` = ${q.arrived}`;
+      d.append(qs, as);
+      logEl.appendChild(d);
+    });
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  const live = queries.length;
+  document.getElementById('query-count').textContent =
+    live + (live === 1 ? ' query' : ' queries');
+}
+
+function updateReadouts() {
+  document.getElementById('clock').textContent = now();
+  document.getElementById('route').textContent = route.join(' → ');
+
+  const where = document.getElementById('where');
+  const box = document.getElementById('status');
+  box.classList.remove('arrived', 'stuck');
+
+  if (at() === 'T') {
+    where.textContent = 'You have reached the destination.';
+    box.classList.add('arrived');
+    box.textContent = `You arrived at ${now()}` +
+      (bestArrival !== null && now() > bestArrival
+        ? `. Your best on this map is still ${bestArrival}.`
+        : `, which is your best on this map so far.`);
+  } else if (!nextHops().length) {
+    where.textContent = `You are stuck at ${at()}.`;
+    box.classList.add('stuck');
+    box.textContent = `No road out of ${at()} leads anywhere new. Undo and try another way.`;
+  } else {
+    where.textContent = `You are at ${at()}, and it is ${now()}.`;
+    const n = nextHops().length;
+    box.textContent = `${n} road${n === 1 ? '' : 's'} out of ${at()}. ` +
+      `The web site will only quote you a price for leaving right now, at ${now()}.`;
+  }
+
+  document.getElementById('undo').disabled = route.length < 2;
+  document.getElementById('restart').disabled = route.length < 2;
+  document.getElementById('check-best').disabled = !reachedT || at() !== 'T';
+  document.getElementById('reveal-sched').disabled = !reachedT;
+  if (!reachedT) {
+    document.getElementById('schedule').classList.remove('open');
+    document.getElementById('reveal-sched').classList.remove('active');
+    document.getElementById('reveal-sched').textContent = "Show every road's schedule";
+  }
+}
+
+function updateExampleUI() {
+  for (let i = 1; i <= 3; i++) {
+    const b = document.getElementById('load-example-' + i);
+    const on = activeExample === i;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const towns = Object.keys(current.nodes).length;
+  document.getElementById('set-caption').textContent =
+    `Example ${activeExample} is loaded — ${towns} towns, ${current.roads.length} roads.`;
+}
+
+function resetVerdict() {
+  const v = document.getElementById('verdict');
+  v.className = 'verdict-box quiet';
+  v.textContent = reachedT
+    ? 'Drive a full route, then ask.'
+    : 'Reach the destination, then ask.';
+}
+
+function checkBest() {
+  const v = document.getElementById('verdict');
+  if (at() !== 'T') { resetVerdict(); return; }
+  const best = bestPossible();
+  if (now() <= best) {
+    v.className = 'verdict-box is-best';
+    v.textContent = `No. Arriving at ${now()} is the best anyone can do on this map. ` +
+      `What is it about this route that the others got wrong?`;
+  } else {
+    v.className = 'verdict-box not-best';
+    v.textContent = `Yes. Some route arrives before ${now()}. ` +
+      `Which road would you back out of first?`;
+  }
+}
+
+/* The schedule table is the one real reveal on this page, so it stays locked
+   until the trip has been driven at least once. It shows how each road
+   behaves over time -- which is what makes the monotonicity promise visible
+   -- without naming a route. */
+function toggleSchedule() {
+  const panel = document.getElementById('schedule');
+  const btn = document.getElementById('reveal-sched');
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('active', open);
+  btn.textContent = open ? "Hide the schedules" : "Show every road's schedule";
+  if (!open) { panel.innerHTML = ''; return; }
+
+  const stops = [0, 4, 8, 12, 16, 20];
+  const table = document.createElement('table');
+  table.className = 'sched';
+  const thead = document.createElement('tr');
+  thead.appendChild(th('road'));
+  stops.forEach(t => thead.appendChild(th('leave ' + t)));
+  table.appendChild(thead);
+
+  current.roads.forEach(([u, v, fn]) => {
+    const tr = document.createElement('tr');
+    const road = document.createElement('td');
+    road.className = 'road';
+    road.textContent = u + '→' + v;
+    tr.appendChild(road);
+    stops.forEach(t => {
+      const td = document.createElement('td');
+      td.textContent = arriveAt(fn, t);
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+
+  const cap = document.createElement('p');
+  cap.className = 'hint';
+  cap.style.marginTop = '8px';
+  cap.textContent = 'Each cell is the arrival time for leaving at that hour. ' +
+    'Read along a row and check the two promises for yourself.';
+
+  panel.innerHTML = '';
+  panel.append(table, cap);
+
+  function th(s) { const e = document.createElement('th'); e.textContent = s; return e; }
+}
+
+function refresh() {
+  renderMap();
+  renderLog();
+  updateReadouts();
+  updateExampleUI();
+}
+
+/* ---------- loading ---------- */
+
+function loadMap(which) {
+  activeExample = which;
+  current = MAPS[which];
+  route = ['S'];
+  times = [0];
+  queries = [];
+  bestArrival = null;
+  reachedT = false;
+  focusKey = null;
+  document.getElementById('schedule').classList.remove('open');
+  document.getElementById('schedule').innerHTML = '';
+  document.getElementById('reveal-sched').classList.remove('active');
+  document.getElementById('reveal-sched').textContent = "Show every road's schedule";
+  resetVerdict();
+  refresh();
+}
+
+for (const i of [1, 2, 3]) {
+  document.getElementById('load-example-' + i).addEventListener('click', () => loadMap(i));
+}
+document.getElementById('undo').addEventListener('click', undo);
+document.getElementById('restart').addEventListener('click', restart);
+document.getElementById('check-best').addEventListener('click', checkBest);
+document.getElementById('reveal-sched').addEventListener('click', toggleSchedule);
+
+loadMap(1);
+
+</script>
+</body>
+</html>
