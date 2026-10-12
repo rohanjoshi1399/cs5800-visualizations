@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Week 4 — Looking down from above | CS 5800</title>
+<meta name="description" content="Week 4: n lines in the plane, and only some of them are ever on top. Slide a probe along and see which ones surface. An interactive model for CS 5800 recitation." />
+<meta name="color-scheme" content="light" />
+<meta property="og:title" content="Week 4 - Looking down from above | CS 5800" />
+<meta property="og:description" content="n lines in the plane, and only some are ever uppermost. Slide a probe along and see which ones surface." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="../shared/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/site.css">
+<style>
+
+  .layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  svg { width: 100%; height: auto; display: block; }
+  #plot { cursor: ew-resize; touch-action: none; }
+
+  .probe-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .probe-row input[type=range] { flex: 1; accent-color: #3E6B4A; }
+  .probe-row label { font-size: 0.78rem; color: var(--ink-soft); white-space: nowrap; }
+  .probe-x {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem;
+    color: var(--ink); min-width: 64px; text-align: right;
+  }
+
+  .topline {
+    margin-top: 10px; padding: 10px 12px; border-radius: 2px;
+    background: var(--moss-soft); border: 1px solid var(--moss);
+    font-size: 0.9rem; line-height: 1.45;
+  }
+  .topline strong { font-family: 'IBM Plex Mono', monospace; }
+
+  /* ---- the roster of lines ---- */
+
+  .lines { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .lines-head, .line-row {
+    display: grid; grid-template-columns: 34px 104px 56px 1fr 92px;
+    gap: 10px; align-items: center;
+  }
+  .lines-head { font-size: 0.72rem; color: var(--ink-soft); padding: 0 6px 6px; }
+  .line-row {
+    padding: 6px 6px; border-top: 1px solid var(--line);
+    transition: background 0.15s ease;
+  }
+  .line-row.on-top { background: var(--moss-soft); }
+
+  .lname { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; }
+  .leq   { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--ink-soft); }
+  .lval  { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; text-align: right; }
+  .line-row.on-top .lval, .line-row.on-top .lname { color: var(--moss-deep); font-weight: 600; }
+  .lseen { font-size: 0.76rem; color: var(--ink-soft); }
+  .lseen.yes { color: var(--moss-deep); }
+  .call button { width: 100%; padding: 4px 6px; font-size: 0.76rem; }
+  .call button.say-vis { background: var(--moss); color: var(--paper); border-color: var(--moss); }
+  .call button.say-hid { background: var(--rust); color: var(--paper); border-color: var(--rust); }
+
+  /* ---- right panel ---- */
+
+  .example-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+  .status-box {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 2px;
+    padding: 14px 16px; font-size: 0.92rem; line-height: 1.5; margin-bottom: 12px;
+  }
+  .verdict-box {
+    border-radius: 2px; padding: 12px 14px; font-size: 0.9rem; line-height: 1.5;
+    margin-bottom: 12px; border: 1px solid var(--line); background: var(--paper);
+  }
+  .verdict-box.is-right { border-color: var(--moss); background: var(--moss-soft); }
+  .verdict-box.not-right { border-color: var(--rust); background: var(--rust-soft); }
+  .verdict-box.quiet { color: var(--ink-soft); }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sitebar">
+    <span class="course-mark">CS 5800 · Week 04</span>
+    <a href="../index.html">&larr; All problems</a>
+  </div>
+
+  <h1>Looking down from above</h1>
+  <div class="meta-strip">
+    <span class="tag">geometry</span>
+    <span class="tag">divide and conquer</span>
+  </div>
+
+  <div class="statement">
+    <p>Hidden surface removal: when Woody stands in front of Buzz you should see Woody and not Buzz. Here is a clean geometric version of the same speed-up.</p>
+    <p>You are given <em>n</em> non-vertical lines in the plane, <em>L<sub>1</sub>, &hellip;, L<sub>n</sub></em>, with the <em>i</em>th given by <em>y = a<sub>i</sub>x + b<sub>i</sub></em>. Assume no three of them meet at a single point. Line <em>L<sub>i</sub></em> is <em>uppermost</em> at <em>x<sub>0</sub></em> if its height there beats every other line's: <em>a<sub>i</sub>x<sub>0</sub> + b<sub>i</sub> &gt; a<sub>j</sub>x<sub>0</sub> + b<sub>j</sub></em> for all <em>j &ne; i</em>. Line <em>L<sub>i</sub></em> is <em>visible</em> if it is uppermost at <em>some</em> x-coordinate, meaning you could see a piece of it looking down from <em>y = &infin;</em>.</p>
+    <p>Give an algorithm that takes the <em>n</em> lines and returns all the visible ones in <em>O(n log n)</em> time.</p>
+  </div>
+
+  <p class="subtitle">Slide the probe along and see which line is on top at that spot. Finding a line on top settles it for good; the lines you never catch up there are the interesting ones. Nothing here sorts anything for you.</p>
+
+  <div class="divider" style="margin:24px 0;"></div>
+
+  <div class="layout">
+
+    <div class="panel">
+      <svg id="plot" viewBox="0 0 660 400" role="img" aria-label="Plot of the lines"></svg>
+
+      <div class="probe-row">
+        <label for="probe">probe at x =</label>
+        <input id="probe" type="range" min="-4" max="4" step="0.01" value="0"
+               aria-label="Probe position along the x axis" />
+        <span class="probe-x" id="probe-x">0.00</span>
+      </div>
+
+      <div class="topline" id="topline" role="status" aria-live="polite"></div>
+
+      <div class="lines">
+        <div class="lines-head">
+          <span>line</span><span>equation</span><span>height</span>
+          <span>ever on top?</span><span>your call</span>
+        </div>
+        <div id="roster"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="section-label">pick a set of lines</p>
+      <div class="example-row" role="group" aria-label="Choose a set of lines">
+        <button id="load-example-1" aria-pressed="false">Example 1</button>
+        <button id="load-example-2" aria-pressed="false">Example 2</button>
+        <button id="load-example-3" aria-pressed="false">Example 3</button>
+      </div>
+      <p class="hint" id="set-caption"></p>
+
+      <div class="divider"></div>
+
+      <p class="section-label">click a line's call to cycle it: undecided &rarr; visible &rarr; hidden</p>
+      <div id="status" class="status-box" role="status" aria-live="polite"></div>
+
+      <div id="verdict" class="verdict-box quiet">Make a call on every line, then check.</div>
+      <button id="check" style="width:100%;margin-bottom:8px;" disabled>Is my answer right?</button>
+      <button id="reveal" style="width:100%;" disabled>Trace the skyline</button>
+      <p class="hint" style="margin-top:8px;">The check says only whether the whole answer is right, never which line you got wrong. Tracing unlocks once you have checked at least once.</p>
+
+      <div class="divider"></div>
+      <button id="clear-calls" style="width:100%;">Clear my calls</button>
+    </div>
+
+  </div>
+
+  <div class="questions wrap-narrow" style="padding:0;">
+    <div class="divider" style="margin:34px 0 22px;"></div>
+    <h2>Questions to sit with</h2>
+    <ol>
+      <li>In Example 1, drag the probe from one end to the other and note every line you catch on top. One line never surfaces. Check whether any <em>single</em> other line sits above it everywhere &mdash; then explain how it can be invisible anyway.</li>
+      <li>Example 1 has two parallel lines. Can both of them be visible? What does that settle about lines that share a slope, and how cheaply can you deal with them?</li>
+      <li>Catching a line on top proves it is visible &mdash; you watched it happen. Can sliding the probe ever prove a line is <em>not</em> visible? What would a proof of invisibility have to look like?</li>
+      <li>Slide from the far left to the far right and watch the slopes of the lines that take their turn on top. What order do they come in? Argue that it could not be any other order.</li>
+      <li>Which line is on top when x is hugely negative, and which when x is hugely positive? You should be able to name both without looking at the picture.</li>
+      <li>Example 3 has nine lines, and one of them is uppermost for only about a third of a unit of x. You may well have slid straight past it. What must an algorithm do so that it never misses a sliver like that?</li>
+      <li>Someone hands you the visible lines, in left-to-right order, together with the x-coordinate where each takes over. How much work is it to check that they are right? Compare that with finding them yourself.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+
+const NS = 'http://www.w3.org/2000/svg';
+const plot = document.getElementById('plot');
+const rosterEl = document.getElementById('roster');
+const probeEl = document.getElementById('probe');
+
+/* Each set is a list of [name, slope, intercept] plus the window to draw.
+   No three lines in any set meet at a point, as the problem assumes. */
+const SETS = {
+  1: { view: [-4, 4, -6, 10], lines: [
+        ['L1', 1, 1], ['L2', -2, 2], ['L3', 0, 1], ['L4', 0, 4], ['L5', 3, -2] ] },
+  2: { view: [-5, 5, -8, 12], lines: [
+        ['L1', 0, 1], ['L2', -1, 3], ['L3', 1, 0], ['L4', -3, -1],
+        ['L5', 2, 1], ['L6', -1, 0], ['L7', 1, 3] ] },
+  3: { view: [-4, 5, -10, 16], lines: [
+        ['L1', 0, 4], ['L2', -2, -1], ['L3', 5, -7], ['L4', 0, -1],
+        ['L5', 2, 0], ['L6', -1, 2], ['L7', -4, -2], ['L8', 3, -6],
+        ['L9', 1, -3] ] }
+};
+
+let lines = [];          // { name, a, b, call, seenAt }
+let view = [-4, 4, -6, 10];
+let probe = 0;
+let activeExample = null;
+let hasChecked = false;
+let tracing = false;
+let dragging = false;
+
+function yAt(L, x) { return L.a * x + L.b; }
+
+function topIndexAt(x) {
+  let best = 0;
+  for (let i = 1; i < lines.length; i++) if (yAt(lines[i], x) > yAt(lines[best], x)) best = i;
+  return best;
+}
+
+/* Whether a line is ever uppermost, worked out from the definition directly:
+   L_i needs some x with (a_i - a_j) x > b_j - b_i for every j, which is just
+   an intersection of half-lines. Non-empty interior means visible. This is
+   O(n^2) and involves no sorting and no stack, so the page never contains
+   the method the students are being asked to find. */
+function visibleRange(i) {
+  const Li = lines[i];
+  let lo = -Infinity, hi = Infinity;
+  for (let j = 0; j < lines.length; j++) {
+    if (j === i) continue;
+    const Lj = lines[j];
+    const da = Li.a - Lj.a, db = Lj.b - Li.b;
+    if (da === 0) { if (db > 0) return null; }
+    else if (da > 0) lo = Math.max(lo, db / da);
+    else hi = Math.min(hi, db / da);
+  }
+  return lo < hi ? [lo, hi] : null;
+}
+
+function trulyVisible(i) { return visibleRange(i) !== null; }
+
+/* ---------- plot ---------- */
+
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in (attrs || {})) if (attrs[k] !== null && attrs[k] !== undefined) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+const L = 46, R = 646, TOP = 16, BOT = 366;
+const sx = x => L + (x - view[0]) / (view[1] - view[0]) * (R - L);
+const sy = y => BOT - (y - view[2]) / (view[3] - view[2]) * (BOT - TOP);
+
+function renderPlot() {
+  plot.innerHTML = '';
+
+  const defs = el('defs');
+  const cp = el('clipPath', { id: 'frame' });
+  cp.appendChild(el('rect', { x: L, y: TOP, width: R - L, height: BOT - TOP }));
+  defs.appendChild(cp);
+  plot.appendChild(defs);
+
+  plot.appendChild(el('rect', { x: L, y: TOP, width: R - L, height: BOT - TOP,
+    fill: '#E7E1CE', stroke: '#B7AD8E', 'stroke-width': 1 }));
+
+  // axes and ticks
+  const step = niceStep(view[1] - view[0]);
+  for (let x = Math.ceil(view[0] / step) * step; x <= view[1]; x += step) {
+    const on = Math.abs(x) < 1e-9;
+    plot.appendChild(el('line', { x1: sx(x), y1: TOP, x2: sx(x), y2: BOT,
+      stroke: on ? '#8A8365' : '#D6CCB0', 'stroke-width': 1 }));
+    plot.appendChild(text(fmt(x), sx(x), BOT + 16, { 'font-size': 10, fill: '#52584C' }));
+  }
+  const ystep = niceStep(view[3] - view[2]);
+  for (let y = Math.ceil(view[2] / ystep) * ystep; y <= view[3]; y += ystep) {
+    const on = Math.abs(y) < 1e-9;
+    plot.appendChild(el('line', { x1: L, y1: sy(y), x2: R, y2: sy(y),
+      stroke: on ? '#8A8365' : '#D6CCB0', 'stroke-width': 1 }));
+    plot.appendChild(text(fmt(y), L - 8, sy(y) + 4, { 'font-size': 10, fill: '#52584C',
+      'text-anchor': 'end' }));
+  }
+
+  const g = el('g', { 'clip-path': 'url(#frame)' });
+  const top = topIndexAt(probe);
+
+  lines.forEach((Ln, i) => {
+    const isTop = i === top;
+    let stroke = '#8A8365', w = 1.6, op = 1;
+    if (Ln.call === 'hidden') { stroke = '#C2BAA0'; w = 1.2; }
+    if (Ln.call === 'visible') { stroke = '#52584C'; w = 2; }
+    if (isTop) { stroke = '#3E6B4A'; w = 3.4; op = 1; }
+    g.appendChild(el('line', {
+      x1: sx(view[0]), y1: sy(yAt(Ln, view[0])),
+      x2: sx(view[1]), y2: sy(yAt(Ln, view[1])),
+      stroke, 'stroke-width': w, 'stroke-opacity': op
+    }));
+  });
+
+  // the skyline, once it has been unlocked and switched on
+  if (tracing) {
+    lines.forEach((Ln, i) => {
+      const r = visibleRange(i);
+      if (!r) return;
+      const a = Math.max(r[0], view[0]), b = Math.min(r[1], view[1]);
+      if (!(a < b)) return;
+      g.appendChild(el('line', {
+        x1: sx(a), y1: sy(yAt(Ln, a)), x2: sx(b), y2: sy(yAt(Ln, b)),
+        stroke: '#A8571E', 'stroke-width': 5, 'stroke-opacity': 0.75,
+        'stroke-linecap': 'round'
+      }));
+      if (r[0] > view[0]) g.appendChild(el('circle', { cx: sx(r[0]), cy: sy(yAt(Ln, r[0])),
+        r: 3.5, fill: '#7E3F13' }));
+    });
+  }
+
+  // the probe
+  g.appendChild(el('line', { x1: sx(probe), y1: TOP, x2: sx(probe), y2: BOT,
+    stroke: '#21281F', 'stroke-width': 1.5, 'stroke-dasharray': '5,4' }));
+  const ty = yAt(lines[top], probe);
+  if (ty >= view[2] && ty <= view[3]) {
+    g.appendChild(el('circle', { cx: sx(probe), cy: sy(ty), r: 5.5,
+      fill: '#3E6B4A', stroke: '#E7E1CE', 'stroke-width': 1.5 }));
+  }
+  plot.appendChild(g);
+
+  plot.setAttribute('aria-label',
+    `Plot of ${lines.length} lines. The probe is at x = ${probe.toFixed(2)}, ` +
+    `where ${lines[top].name} is uppermost at height ${yAt(lines[top], probe).toFixed(2)}.`);
+
+  function text(s, x, y, attrs) {
+    const e = el('text', Object.assign({ x, y, 'text-anchor': 'middle',
+      'font-family': 'IBM Plex Mono, monospace' }, attrs));
+    e.textContent = s;
+    return e;
+  }
+}
+
+function niceStep(span) {
+  for (const c of [1, 2, 5, 10, 20, 50]) if (span / c <= 11) return c;
+  return 100;
+}
+function fmt(v) { return Math.abs(v) < 1e-9 ? '0' : String(Math.round(v * 100) / 100); }
+
+function eqOf(Ln) {
+  const a = Ln.a === 1 ? 'x' : Ln.a === -1 ? '-x' : Ln.a === 0 ? '' : Ln.a + 'x';
+  if (!a) return 'y = ' + Ln.b;
+  if (Ln.b === 0) return 'y = ' + a;
+  return 'y = ' + a + (Ln.b > 0 ? ' + ' + Ln.b : ' - ' + Math.abs(Ln.b));
+}
+
+/* ---------- roster ---------- */
+
+function renderRoster() {
+  const keep = document.activeElement && document.activeElement.dataset
+    ? document.activeElement.dataset.callFor : null;
+  rosterEl.innerHTML = '';
+  const top = topIndexAt(probe);
+
+  lines.forEach((Ln, i) => {
+    const row = document.createElement('div');
+    row.className = 'line-row' + (i === top ? ' on-top' : '');
+
+    const nm = document.createElement('span');
+    nm.className = 'lname'; nm.textContent = Ln.name;
+
+    const eq = document.createElement('span');
+    eq.className = 'leq'; eq.textContent = eqOf(Ln);
+
+    const val = document.createElement('span');
+    val.className = 'lval'; val.textContent = yAt(Ln, probe).toFixed(2);
+
+    const seen = document.createElement('span');
+    seen.className = 'lseen' + (Ln.seenAt !== null ? ' yes' : '');
+    seen.textContent = Ln.seenAt !== null
+      ? 'yes, at x = ' + Ln.seenAt.toFixed(2)
+      : 'not yet';
+
+    const call = document.createElement('span');
+    call.className = 'call';
+    const b = document.createElement('button');
+    b.textContent = Ln.call === null ? 'undecided' : Ln.call;
+    b.className = Ln.call === 'visible' ? 'say-vis' : Ln.call === 'hidden' ? 'say-hid' : '';
+    b.dataset.callFor = Ln.name;
+    b.setAttribute('aria-label',
+      `${Ln.name}, ${eqOf(Ln)}. Your call is ${Ln.call || 'undecided'}. Activate to change it.`);
+    b.addEventListener('click', () => {
+      Ln.call = Ln.call === null ? 'visible' : Ln.call === 'visible' ? 'hidden' : null;
+      resetVerdict();
+      refresh();
+      const again = rosterEl.querySelector(`[data-call-for="${Ln.name}"]`);
+      if (again) again.focus({ preventScroll: true });
+    });
+    call.appendChild(b);
+
+    row.append(nm, eq, val, seen, call);
+    rosterEl.appendChild(row);
+  });
+
+  if (keep) {
+    const b = rosterEl.querySelector(`[data-call-for="${keep}"]`);
+    if (b) b.focus({ preventScroll: true });
+  }
+}
+
+/* ---------- readouts ---------- */
+
+function updateReadouts() {
+  const top = topIndexAt(probe);
+  document.getElementById('probe-x').textContent = probe.toFixed(2);
+  document.getElementById('topline').innerHTML =
+    `At x = <strong>${probe.toFixed(2)}</strong>, the uppermost line is ` +
+    `<strong>${lines[top].name}</strong> (${eqOf(lines[top])}) at height ` +
+    `<strong>${yAt(lines[top], probe).toFixed(2)}</strong>.`;
+
+  const seen = lines.filter(l => l.seenAt !== null).length;
+  const called = lines.filter(l => l.call !== null).length;
+  document.getElementById('status').textContent =
+    `${lines.length} lines. You have caught ${seen} of them on top so far, ` +
+    `and made a call on ${called}.`;
+
+  document.getElementById('check').disabled = called !== lines.length;
+  document.getElementById('reveal').disabled = !hasChecked;
+  document.getElementById('reveal').classList.toggle('active', tracing);
+  document.getElementById('reveal').textContent = tracing ? 'Hide the skyline' : 'Trace the skyline';
+}
+
+function updateExampleUI() {
+  for (let i = 1; i <= 3; i++) {
+    const b = document.getElementById('load-example-' + i);
+    const on = activeExample === i;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  document.getElementById('set-caption').textContent =
+    `Example ${activeExample} is loaded — ${lines.length} lines.`;
+}
+
+function resetVerdict() {
+  const v = document.getElementById('verdict');
+  v.className = 'verdict-box quiet';
+  v.textContent = 'Make a call on every line, then check.';
+}
+
+function check() {
+  const v = document.getElementById('verdict');
+  const allRight = lines.every((Ln, i) => (Ln.call === 'visible') === trulyVisible(i));
+  hasChecked = true;
+  if (allRight) {
+    v.className = 'verdict-box is-right';
+    v.textContent = 'Right, every one of them. Now say why the hidden ones are hidden ' +
+      'without pointing at the picture.';
+  } else {
+    v.className = 'verdict-box not-right';
+    v.textContent = 'Not quite. At least one call is wrong, and catching a line on top ' +
+      'is the only thing that settles it for certain.';
+  }
+  refresh();
+}
+
+function refresh() {
+  renderPlot();
+  renderRoster();
+  updateReadouts();
+  updateExampleUI();
+}
+
+/* ---------- probe ---------- */
+
+function setProbe(x) {
+  probe = Math.min(view[1], Math.max(view[0], x));
+  const top = topIndexAt(probe);
+  // catching a line on top is a certificate of visibility, so keep the first one
+  if (lines[top].seenAt === null) lines[top].seenAt = probe;
+  refresh();
+}
+
+probeEl.addEventListener('input', () => setProbe(Number(probeEl.value)));
+
+function probeFromEvent(ev) {
+  const r = plot.getBoundingClientRect();
+  const frac = (ev.clientX - r.left) / r.width;          // viewBox is 660 wide
+  const vx = frac * 660;
+  const x = view[0] + (vx - L) / (R - L) * (view[1] - view[0]);
+  probeEl.value = String(Math.min(view[1], Math.max(view[0], x)));
+  setProbe(Number(probeEl.value));
+}
+
+plot.addEventListener('pointerdown', ev => {
+  dragging = true;
+  plot.setPointerCapture(ev.pointerId);
+  probeFromEvent(ev);
+});
+plot.addEventListener('pointermove', ev => { if (dragging) probeFromEvent(ev); });
+plot.addEventListener('pointerup', ev => {
+  dragging = false;
+  if (plot.hasPointerCapture(ev.pointerId)) plot.releasePointerCapture(ev.pointerId);
+});
+
+/* ---------- loading ---------- */
+
+function loadSet(which) {
+  activeExample = which;
+  const s = SETS[which];
+  view = s.view.slice();
+  lines = s.lines.map(([name, a, b]) => ({ name, a, b, call: null, seenAt: null }));
+  hasChecked = false;
+  tracing = false;
+  probeEl.min = String(view[0]);
+  probeEl.max = String(view[1]);
+  probeEl.value = '0';
+  probe = 0;
+  resetVerdict();
+  setProbe(0);
+}
+
+for (const i of [1, 2, 3]) {
+  document.getElementById('load-example-' + i).addEventListener('click', () => loadSet(i));
+}
+document.getElementById('check').addEventListener('click', check);
+document.getElementById('reveal').addEventListener('click', () => {
+  if (!hasChecked) return;
+  tracing = !tracing;
+  refresh();
+});
+document.getElementById('clear-calls').addEventListener('click', () => {
+  lines.forEach(l => l.call = null);
+  resetVerdict();
+  refresh();
+});
+
+loadSet(1);
+
+</script>
+</body>
+</html>
