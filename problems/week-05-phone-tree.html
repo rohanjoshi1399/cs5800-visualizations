@@ -84,7 +84,7 @@
 
   <h1>The rained-out picnic</h1>
   <div class="meta-strip">
-    <span class="tag">greedy</span>
+    <span class="tag">dynamic programming</span>
     <span class="tag">trees</span>
   </div>
 
@@ -139,7 +139,7 @@
       <div id="verdict" class="verdict-box quiet">Set an order you like, then ask.</div>
       <button id="check" style="width:100%;margin-bottom:8px;">Can this be done in fewer rounds?</button>
       <button id="reveal" style="width:100%;" disabled>Show each branch's own best</button>
-      <p class="hint" style="margin-top:8px;">The check says only whether some plan is quicker, never which one. The branch figures unlock once you have asked at least once.</p>
+      <p class="hint" style="margin-top:8px;">The check says only whether some plan is quicker, never which one. The branch figures unlock once you have asked at least once &mdash; there is exactly one of them per officer, which is worth noticing when you get to question 5.</p>
 
       <div class="divider"></div>
       <button id="shuffle" style="width:100%;margin-bottom:8px;">Shuffle every order</button>
@@ -154,10 +154,11 @@
     <ol>
       <li>In Example 1 the ranking officer has three subordinates. Find an order that finishes in five rounds, then one that takes seven. What exactly did you change, and why did it cost two rounds?</li>
       <li>Example 1 punishes you for ringing the longest chain of command first. Example 3 punishes you for it even harder &mdash; it is as bad as the worst order available. So "deal with the deepest branch first" is wrong. Why does depth mislead you?</li>
-      <li>In Example 2, branch N contains six people and branch W contains seven, and yet N has to be rung first. More people under you is not it either. What number are you actually comparing when you decide who to ring first?</li>
-      <li>Fix the order at the top, then go and change an order somewhere deep in a branch. Can that ever change what the top should have done? What does your answer let you do with the problem?</li>
-      <li>Take any plan and swap two subordinates who are next to each other in one officer's queue. Whose round can change, and whose certainly cannot? Use that to argue what a best queue has to look like.</li>
-      <li>You have seen this shape before. In week 2 the contestants shared one swimming pool, and you ordered them by how much work each had left <em>after</em> the pool. Here each officer's phone is the pool. What plays the part of "the work left over", and why is this the same argument?</li>
+      <li>In Example 2, branch N contains six people and branch W contains seven, and yet N has to be rung first. More people under you is not it either. Name the quantity you are actually comparing, as precisely as you can.</li>
+      <li>Fix the order at the top, then go and change an order deep inside one branch. Can that ever change what the top should have done? State the subproblem this hierarchy really breaks into, and say what that independence lets you do.</li>
+      <li>Write the recurrence. Let <em>T(v)</em> be the fewest rounds needed for everyone below <em>v</em> to hear, counting from the moment <em>v</em> hears. Give <em>T(v)</em> for someone with no subordinates, then give <em>T(v)</em> in terms of the <em>T</em> values of <em>v</em>'s direct subordinates. In what order would you compute these?</li>
+      <li>As written, your recurrence minimises over every order of <em>v</em>'s <em>k</em> subordinates, which is <em>k!</em> of them. Take one order and swap two subordinates who sit next to each other in the queue. Whose round can change, and whose certainly cannot? Use that to evaluate the minimum without enumerating anything, and then work out the total running time over the whole tree.</li>
+      <li>You have met that swapping argument before. In week 2 the contestants shared one swimming pool and you ordered them by the work each had left <em>after</em> the pool; here each officer's phone is the same kind of bottleneck. But in week 2 the exchange argument <em>was</em> the whole algorithm, and here it is one step inside something larger. Say exactly what the larger thing is and where the exchange argument sits inside it.</li>
       <li>Someone hands you a complete plan and says it is optimal. How much work is it to compute how many rounds their plan takes? Is that the same as showing nothing beats it?</li>
     </ol>
   </div>
