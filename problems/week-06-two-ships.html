@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Week 6 — Two ships, one signal | CS 5800</title>
+<meta name="description" content="Week 6: two ships each repeat a short pattern, and you hear the two mixed together. Hand each symbol to a ship and see whether the signal unravels. An interactive model for CS 5800 recitation." />
+<meta name="color-scheme" content="light" />
+<meta property="og:title" content="Week 6 - Two ships, one signal | CS 5800" />
+<meta property="og:description" content="Two ships each repeat a short pattern and you hear them mixed. Hand each symbol to a ship and see whether the signal unravels." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="../shared/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/site.css">
+<style>
+
+  .layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  /* ---- the signal and the two ships ---- */
+
+  .strip { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 2px; }
+  .cell {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem;
+    width: 30px; height: 34px; line-height: 34px; text-align: center;
+    border: 1px solid var(--line); border-radius: 2px;
+    background: var(--paper); color: var(--ink-soft);
+  }
+  .cell.to-x { background: var(--moss); border-color: var(--moss-deep); color: var(--paper); }
+  .cell.to-y { background: var(--rust); border-color: var(--rust-deep); color: var(--paper); }
+  .cell.now  { border-color: var(--ink); border-width: 2.5px; color: var(--ink); font-weight: 600; }
+  .cell.dead { background: #F4E3DE; border-color: var(--alert); color: var(--alert); }
+
+  .tick { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tick span {
+    width: 30px; text-align: center;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.64rem; color: var(--unknown);
+  }
+
+  .ship { border: 1px solid var(--line); border-radius: 2px; padding: 12px 14px; margin-bottom: 10px; }
+  .ship.is-x { background: var(--moss-soft); }
+  .ship.is-y { background: var(--rust-soft); }
+  .ship-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 10px; flex-wrap: wrap; margin-bottom: 6px;
+  }
+  .ship-name { font-family: 'Fraunces', serif; font-size: 1rem; }
+  .ship-name code { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
+  .ship-want { font-size: 0.8rem; color: var(--ink-soft); }
+  .ship-want b { font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem; color: var(--ink); }
+  .pattern { display: flex; gap: 3px; flex-wrap: wrap; }
+  .pattern span {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem;
+    width: 20px; height: 22px; line-height: 22px; text-align: center;
+    border-radius: 2px; background: var(--paper); color: var(--ink-soft);
+    border: 1px solid transparent;
+  }
+  .pattern span.sent { background: var(--paper-deep); color: var(--ink); }
+  .pattern span.next { border-color: var(--ink); font-weight: 600; color: var(--ink); }
+  .pattern span.edge { box-shadow: inset 2px 0 0 var(--line); }
+
+  /* ---- right panel ---- */
+
+  .clock { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .clock-big {
+    font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 600;
+    line-height: 1.1; color: var(--ink);
+  }
+  .clock-unit { font-size: 0.85rem; color: var(--ink-soft); }
+  .tally { font-family: 'IBM Plex Mono', monospace; font-size: 0.76rem; color: var(--ink-soft); margin: 0 0 12px; }
+
+  .example-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .btn-row button { flex: 1; }
+  .give-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .give-row button { flex: 1; padding: 10px 8px; }
+  .give-row button.gx { border-color: var(--moss-deep); }
+  .give-row button.gx:hover:not(:disabled) { background: var(--moss); border-color: var(--moss); }
+  .give-row button.gy { border-color: var(--rust-deep); }
+  .give-row button.gy:hover:not(:disabled) { background: var(--rust); border-color: var(--rust); }
+
+  .status-box {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 2px;
+    padding: 14px 16px; font-size: 0.92rem; line-height: 1.5; margin-bottom: 12px;
+  }
+  .status-box.done { border-color: var(--moss); background: var(--moss-soft); }
+  .status-box.stuck { border-color: var(--alert); background: #F4E3DE; }
+
+  .seen-note {
+    border: 1px solid var(--rust); background: var(--rust-soft);
+    border-radius: 2px; padding: 11px 13px; font-size: 0.86rem; line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  .verdict-box {
+    border-radius: 2px; padding: 12px 14px; font-size: 0.9rem; line-height: 1.5;
+    margin-bottom: 12px; border: 1px solid var(--line); background: var(--paper);
+  }
+  .verdict-box.is-yes { border-color: var(--moss); background: var(--moss-soft); }
+  .verdict-box.is-no { border-color: var(--rust); background: var(--rust-soft); }
+  .verdict-box.quiet { color: var(--ink-soft); }
+
+  /* ---- the gated situation grid ---- */
+
+  #grid-wrap { margin-top: 14px; display: none; }
+  #grid-wrap.open { display: block; }
+  .grid-row { display: flex; gap: 2px; margin-bottom: 2px; align-items: center; }
+  .grid-row > .rlab {
+    width: 22px; text-align: right; padding-right: 4px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--ink-soft);
+  }
+  .gcell {
+    width: 19px; height: 19px; border-radius: 2px;
+    border: 1px solid var(--line); background: var(--paper);
+  }
+  .gcell.unreach { border-color: #E0D8BE; background: transparent; }
+  .gcell.dead    { background: var(--paper-deep); }
+  .gcell.good    { background: var(--moss-soft); border-color: var(--moss); }
+  .gcell.seen    { outline: 2px solid var(--ink); outline-offset: -2px; }
+  .gcell.here    { background: var(--ink); border-color: var(--ink); }
+  .glegend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+  .glegend span { display: flex; align-items: center; gap: 5px; font-size: 0.74rem; color: var(--ink-soft); }
+  .glegend i { width: 13px; height: 13px; border-radius: 2px; display: inline-block; border: 1px solid var(--line); }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sitebar">
+    <span class="course-mark">CS 5800 · Week 06</span>
+    <a href="../index.html">&larr; All problems</a>
+  </div>
+
+  <h1>Two ships, one signal</h1>
+  <div class="meta-strip">
+    <span class="tag">dynamic programming</span>
+    <span class="tag">strings</span>
+  </div>
+
+  <div class="statement">
+    <p>You are consulting for a group who monitor electronic signals from ships in coastal Atlantic waters. Two ships are each emitting a short sequence of 0s and 1s over and over, and the listeners want to be sure that what they hear is nothing more than those two emissions interleaved, with nothing extra added in.</p>
+    <p>Write <em>x<sup>k</sup></em> for <em>k</em> copies of <em>x</em> run together. A string <em>x&prime;</em> is a <em>repetition</em> of <em>x</em> if it is a prefix of <em>x<sup>k</sup></em> for some <em>k</em>; so 10110110110 is a repetition of 101. A string <em>s</em> is an <em>interleaving</em> of <em>x</em> and <em>y</em> if its symbols can be split into two subsequences, not necessarily contiguous, one a repetition of <em>x</em> and the other a repetition of <em>y</em>, with every symbol of <em>s</em> belonging to exactly one of them.</p>
+    <p>Here <em>x</em> and <em>y</em> are the two ships' repeating patterns and <em>s</em> is what you are hearing. Give an efficient algorithm that takes <em>s</em>, <em>x</em> and <em>y</em> and decides whether <em>s</em> is an interleaving of them.</p>
+  </div>
+
+  <p class="subtitle">Work along the signal one symbol at a time, handing each to whichever ship could have sent it. A ship will only take a symbol if that is genuinely the next one in its pattern. Nothing here unravels the signal for you.</p>
+
+  <div class="divider" style="margin:24px 0;"></div>
+
+  <div class="layout">
+
+    <div class="panel">
+      <p class="section-label">the signal you are hearing</p>
+      <div class="strip" id="signal"></div>
+      <div class="tick" id="ticks"></div>
+
+      <div class="ship is-x">
+        <div class="ship-head">
+          <span class="ship-name">Ship X repeats <code id="x-pat"></code></span>
+          <span class="ship-want" id="x-want"></span>
+        </div>
+        <div class="pattern" id="x-strip"></div>
+      </div>
+
+      <div class="ship is-y">
+        <div class="ship-head">
+          <span class="ship-name">Ship Y repeats <code id="y-pat"></code></span>
+          <span class="ship-want" id="y-want"></span>
+        </div>
+        <div class="pattern" id="y-strip"></div>
+      </div>
+
+      <p class="hint">Each ship's strip shows its pattern running on and on. Shaded cells are what it has already emitted, and the outlined cell is the one symbol it is able to send next.</p>
+    </div>
+
+    <div class="panel">
+      <div class="clock">
+        <span class="clock-big" id="where">X has sent 0 &middot; Y has sent 0</span>
+      </div>
+      <p class="tally" id="tally"></p>
+
+      <div class="give-row">
+        <button id="give-x" class="gx">Give it to X</button>
+        <button id="give-y" class="gy">Give it to Y</button>
+      </div>
+      <div class="btn-row">
+        <button id="undo">Undo</button>
+        <button id="restart">Start over</button>
+      </div>
+
+      <div id="status" class="status-box" role="status" aria-live="polite"></div>
+      <div id="seen" style="display:none;"></div>
+
+      <div class="divider"></div>
+
+      <p class="section-label">pick a recording</p>
+      <div class="example-row" role="group" aria-label="Choose a recording">
+        <button id="load-example-1" aria-pressed="false">Example 1</button>
+        <button id="load-example-2" aria-pressed="false">Example 2</button>
+        <button id="load-example-3" aria-pressed="false">Example 3</button>
+      </div>
+      <p class="hint" id="set-caption"></p>
+
+      <div class="divider"></div>
+
+      <div id="verdict" class="verdict-box quiet">Have a go first, then ask.</div>
+      <button id="check" style="width:100%;margin-bottom:8px;">Does any split work at all?</button>
+      <button id="reveal" style="width:100%;" disabled>Show every situation</button>
+      <p class="hint" style="margin-top:8px;">The check answers only yes or no for the whole recording, never which choices to make. The map of situations unlocks once you have asked.</p>
+
+      <div id="grid-wrap"></div>
+    </div>
+
+  </div>
+
+  <div class="questions wrap-narrow" style="padding:0;">
+    <div class="divider" style="margin:34px 0 22px;"></div>
+    <h2>Questions to sit with</h2>
+    <ol>
+      <li>Unravel Example 1 completely. Now start over and find a different split of the same recording. How many are there, and does it matter which one you hand in?</li>
+      <li>On Example 1 the habit "give it to X whenever X could have sent it" takes you all the way to the end. Try that same habit on Example 2. Where does it die, and what does that rule out for good?</li>
+      <li>Example 2 does have a split, but neither greedy habit finds it, so you have to search. Before ruling anything out, how many ways are there of assigning its ten symbols to two ships?</li>
+      <li>Undo back a few steps and come forward by different choices. Watch the "X has sent / Y has sent" line. Two different sets of choices can leave you in exactly the same position. Say precisely what that position consists of: what do you have to remember, and what can you throw away?</li>
+      <li>Given your answer, how many genuinely different positions are there for a recording of length <em>n</em>? Write the recurrence that decides whether a position can be carried through to the end, and give its base case.</li>
+      <li>Example 3 has no split at all, and you can still get as far as the final symbol before it collapses. Answering no means ruling out every route. How does your table manage that without walking all 2<sup>11</sup> of them?</li>
+      <li>You never needed to record <em>which</em> symbols went to X, only <em>how many</em>. Why is the count enough on its own, and where exactly does the fact that <em>x</em> and <em>y</em> repeat get used?</li>
+      <li>Someone hands you a finished split and says it works. How long does it take to check them? Compare that with deciding the question from scratch.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+
+const SETS = {
+  1: { x: '101', y: '00',  s: '100010101'   },
+  2: { x: '010', y: '011', s: '0100101101'  },
+  3: { x: '011', y: '01',  s: '01010101000' }
+};
+
+let X = '', Y = '', S = '';
+let route = [];            // 'x' / 'y' per symbol handed over, in order
+let visited = new Map();   // "i,j" -> the first route that got there
+let arrivals = 0;          // every time a symbol is handed over, undo or not
+let activeExample = null;
+let hasChecked = false;
+let showingGrid = false;
+let seenNote = null;
+
+const countX = () => route.filter(c => c === 'x').length;
+const countY = () => route.length - countX();
+const wantX = i => X[i % X.length];
+const wantY = j => Y[j % Y.length];
+const atEnd = () => route.length === S.length;
+
+function canX(i, t) { return t < S.length && S[t] === wantX(i); }
+function canY(j, t) { return t < S.length && S[t] === wantY(j); }
+
+/* ---------- the truth, by brute force ---------- */
+
+/* Walks every legal assignment, remembering nothing between branches. No
+   table, no reuse of a position already explored -- which is exactly the
+   thing the students are being asked to invent, so the page must not
+   contain it. The pruned tree runs to a few dozen nodes on these
+   recordings, so honesty costs nothing here. */
+function exploreAll() {
+  const n = S.length;
+  const reachable = new Set(), onSplit = new Set();
+  let complete = 0, nodes = 0;
+  (function go(t, i, j, trail) {
+    nodes++;
+    reachable.add(i + ',' + j);
+    if (t === n) {
+      complete++;
+      trail.concat([i + ',' + j]).forEach(k => onSplit.add(k));
+      return;
+    }
+    const here = trail.concat([i + ',' + j]);
+    if (canX(i, t)) go(t + 1, i + 1, j, here);
+    if (canY(j, t)) go(t + 1, i, j + 1, here);
+  })(0, 0, 0, []);
+  return { reachable, onSplit, complete, nodes };
+}
+
+/* ---------- rendering ---------- */
+
+function renderSignal() {
+  const sig = document.getElementById('signal');
+  const ticks = document.getElementById('ticks');
+  sig.innerHTML = ''; ticks.innerHTML = '';
+  const t = route.length;
+  const stuck = !atEnd() && !canX(countX(), t) && !canY(countY(), t);
+
+  [...S].forEach((c, k) => {
+    const d = document.createElement('div');
+    d.className = 'cell';
+    if (k < t) d.classList.add(route[k] === 'x' ? 'to-x' : 'to-y');
+    if (k === t) d.classList.add(stuck ? 'dead' : 'now');
+    d.textContent = c;
+    sig.appendChild(d);
+
+    const n = document.createElement('span');
+    n.textContent = k + 1;
+    ticks.appendChild(n);
+  });
+}
+
+function renderShip(which) {
+  const pat = which === 'x' ? X : Y;
+  const sent = which === 'x' ? countX() : countY();
+  const strip = document.getElementById(which + '-strip');
+  document.getElementById(which + '-pat').textContent = pat;
+  strip.innerHTML = '';
+
+  // show the pattern running on far enough to see where we are plus a bit
+  const reps = Math.max(2, Math.ceil((sent + pat.length + 1) / pat.length));
+  for (let k = 0; k < reps * pat.length; k++) {
+    const sp = document.createElement('span');
+    sp.textContent = pat[k % pat.length];
+    if (k < sent) sp.classList.add('sent');
+    if (k === sent) sp.classList.add('next');
+    if (k % pat.length === 0 && k > 0) sp.classList.add('edge');
+    strip.appendChild(sp);
+  }
+
+  const t = route.length;
+  const able = which === 'x' ? canX(countX(), t) : canY(countY(), t);
+  document.getElementById(which + '-want').innerHTML = atEnd()
+    ? 'the recording is finished'
+    : `next it can only send <b>${which === 'x' ? wantX(sent) : wantY(sent)}</b>` +
+      `, and symbol ${t + 1} is <b>${S[t]}</b> &mdash; ${able ? 'so it fits' : 'so it does not fit'}`;
+}
+
+function renderGrid() {
+  const wrap = document.getElementById('grid-wrap');
+  wrap.classList.toggle('open', showingGrid);
+  if (!showingGrid) { wrap.innerHTML = ''; return; }
+
+  const n = S.length;
+  const { reachable, onSplit } = exploreAll();
+  const hereKey = countX() + ',' + countY();
+  wrap.innerHTML = '';
+
+  const head = document.createElement('p');
+  head.className = 'section-label';
+  head.style.marginTop = '4px';
+  head.textContent = 'every position, across (symbols X has sent, symbols Y has sent)';
+  wrap.appendChild(head);
+
+  for (let j = 0; j <= n; j++) {
+    const row = document.createElement('div');
+    row.className = 'grid-row';
+    const lab = document.createElement('span');
+    lab.className = 'rlab';
+    lab.textContent = j;
+    row.appendChild(lab);
+    for (let i = 0; i + j <= n; i++) {
+      const key = i + ',' + j;
+      const c = document.createElement('div');
+      c.className = 'gcell';
+      c.dataset.pos = key;
+      if (!reachable.has(key)) c.classList.add('unreach');
+      else if (onSplit.has(key)) c.classList.add('good');
+      else c.classList.add('dead');
+      if (visited.has(key)) c.classList.add('seen');
+      if (key === hereKey) c.classList.add('here');
+      c.title = `X has sent ${i}, Y has sent ${j}` +
+        (reachable.has(key)
+          ? (onSplit.has(key) ? ' — on a route that finishes' : ' — a dead branch')
+          : ' — cannot arise');
+      row.appendChild(c);
+    }
+    wrap.appendChild(row);
+  }
+
+  const legend = document.createElement('div');
+  legend.className = 'glegend';
+  [['good', 'leads to a full split'], ['dead', 'reachable, but a dead branch'],
+   ['unreach', 'cannot arise at all'], ['seen', 'you have been here']]
+    .forEach(([cls, label]) => {
+      const sp = document.createElement('span');
+      const i = document.createElement('i');
+      i.className = 'gcell ' + cls;
+      sp.append(i, document.createTextNode(label));
+      legend.appendChild(sp);
+    });
+  wrap.appendChild(legend);
+
+  const note = document.createElement('p');
+  note.className = 'hint';
+  note.style.marginTop = '8px';
+  note.textContent = 'Every diagonal running from bottom-left to top-right is one moment ' +
+    'in the recording, because the two counts always add up to how far along you are.';
+  wrap.appendChild(note);
+}
+
+function updateReadouts() {
+  const i = countX(), j = countY(), t = route.length, n = S.length;
+  const stuck = !atEnd() && !canX(i, t) && !canY(j, t);
+
+  document.getElementById('where').textContent =
+    `X has sent ${i} · Y has sent ${j}`;
+  document.getElementById('tally').textContent =
+    `symbol ${Math.min(t + 1, n)} of ${n} · ${visited.size} different ` +
+    `position${visited.size === 1 ? '' : 's'} visited · ${arrivals} handovers made`;
+
+  const box = document.getElementById('status');
+  box.classList.remove('done', 'stuck');
+  if (atEnd()) {
+    box.classList.add('done');
+    box.textContent = `Every symbol is accounted for. X took ${i} of them and Y took ${j}, ` +
+      `and both are honest repetitions of their patterns.`;
+  } else if (stuck) {
+    box.classList.add('stuck');
+    box.textContent = `Stuck. Symbol ${t + 1} is ${S[t]}, but X can only send ` +
+      `${wantX(i)} next and Y can only send ${wantY(j)}. Undo and try another way.`;
+  } else {
+    box.textContent = `Symbol ${t + 1} is ${S[t]}. Hand it to a ship that could have sent it.`;
+  }
+
+  document.getElementById('give-x').disabled = !canX(i, t);
+  document.getElementById('give-y').disabled = !canY(j, t);
+  document.getElementById('give-x').textContent =
+    atEnd() ? 'Give it to X' : `Give it to X (wants ${wantX(i)})`;
+  document.getElementById('give-y').textContent =
+    atEnd() ? 'Give it to Y' : `Give it to Y (wants ${wantY(j)})`;
+  document.getElementById('undo').disabled = !route.length;
+  document.getElementById('restart').disabled = !route.length;
+
+  const seen = document.getElementById('seen');
+  if (seenNote) {
+    seen.style.display = '';
+    seen.className = 'seen-note';
+    seen.textContent = seenNote;
+  } else {
+    seen.style.display = 'none';
+    seen.innerHTML = '';
+  }
+
+  document.getElementById('reveal').disabled = !hasChecked;
+  document.getElementById('reveal').classList.toggle('active', showingGrid);
+  document.getElementById('reveal').textContent =
+    showingGrid ? 'Hide the situations' : 'Show every situation';
+}
+
+function updateExampleUI() {
+  for (let k = 1; k <= 3; k++) {
+    const b = document.getElementById('load-example-' + k);
+    const on = activeExample === k;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  document.getElementById('set-caption').textContent =
+    `Example ${activeExample} is loaded — ${S.length} symbols, ` +
+    `against patterns ${X} and ${Y}.`;
+}
+
+function resetVerdict() {
+  const v = document.getElementById('verdict');
+  v.className = 'verdict-box quiet';
+  v.textContent = 'Have a go first, then ask.';
+}
+
+function check() {
+  const v = document.getElementById('verdict');
+  const { complete } = exploreAll();
+  hasChecked = true;
+  if (complete > 0) {
+    v.className = 'verdict-box is-yes';
+    v.textContent = `Yes, this recording does come apart cleanly. Finding one split is ` +
+      `your job; what would you have to do to be sure there was none?`;
+  } else {
+    v.className = 'verdict-box is-no';
+    v.textContent = `No. However you hand out the symbols, this recording never comes apart ` +
+      `into the two patterns. Something else is on the air.`;
+  }
+  refresh();
+}
+
+/* ---------- moves ---------- */
+
+function give(which) {
+  const i = countX(), j = countY(), t = route.length;
+  if (which === 'x' ? !canX(i, t) : !canY(j, t)) return;
+  route.push(which);
+  arrivals++;
+  const key = countX() + ',' + countY();
+  const before = visited.get(key);
+  const now = route.join('');
+  if (before !== undefined && before !== now) {
+    seenNote = `You have been in this exact position before, by different choices. ` +
+      `Last time you reached "X has sent ${countX()}, Y has sent ${countY()}" by ` +
+      `${describe(before)}; this time by ${describe(now)}. Whatever you work out from ` +
+      `here is true for both.`;
+  } else {
+    seenNote = null;
+    if (before === undefined) visited.set(key, now);
+  }
+  resetVerdict();
+  refresh();
+}
+
+function describe(r) {
+  return [...r].map(c => c.toUpperCase()).join('');
+}
+
+function undo() {
+  if (!route.length) return;
+  route.pop();
+  seenNote = null;
+  resetVerdict();
+  refresh();
+}
+
+function restart() {
+  route = [];
+  seenNote = null;
+  resetVerdict();
+  refresh();
+}
+
+function refresh() {
+  renderSignal();
+  renderShip('x');
+  renderShip('y');
+  renderGrid();
+  updateReadouts();
+  updateExampleUI();
+}
+
+/* ---------- loading ---------- */
+
+function loadSet(which) {
+  activeExample = which;
+  const set = SETS[which];
+  X = set.x; Y = set.y; S = set.s;
+  route = [];
+  visited = new Map();
+  visited.set('0,0', '');
+  arrivals = 0;
+  seenNote = null;
+  hasChecked = false;
+  showingGrid = false;
+  resetVerdict();
+  refresh();
+}
+
+for (const k of [1, 2, 3]) {
+  document.getElementById('load-example-' + k).addEventListener('click', () => loadSet(k));
+}
+document.getElementById('give-x').addEventListener('click', () => give('x'));
+document.getElementById('give-y').addEventListener('click', () => give('y'));
+document.getElementById('undo').addEventListener('click', undo);
+document.getElementById('restart').addEventListener('click', restart);
+document.getElementById('check').addEventListener('click', check);
+document.getElementById('reveal').addEventListener('click', () => {
+  if (!hasChecked) return;
+  showingGrid = !showingGrid;
+  refresh();
+});
+
+loadSet(1);
+
+</script>
+</body>
+</html>
