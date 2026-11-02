@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Week 7 — Getting ones onto the diagonal | CS 5800</title>
+<meta name="description" content="Week 7: swap rows and columns of a 0-1 matrix until every diagonal entry is a 1, or find out why you cannot. An interactive model for CS 5800 recitation." />
+<meta name="color-scheme" content="light" />
+<meta property="og:title" content="Week 7 - Getting ones onto the diagonal | CS 5800" />
+<meta property="og:description" content="Swap rows and columns of a 0-1 matrix until every diagonal entry is a 1, or find out why you cannot." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="../shared/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/site.css">
+<style>
+
+  .layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  /* ---- the matrix ---- */
+
+  .mat { display: inline-block; }
+  .mrow { display: flex; gap: 3px; margin-bottom: 3px; align-items: center; }
+  .rlab, .clab {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--ink-soft);
+    width: 40px; text-align: center; flex: none;
+  }
+  .rlab { text-align: right; padding-right: 7px; width: 46px; }
+  .rlab.blocked { color: var(--alert); font-weight: 600; }
+  .rlab.done { color: var(--moss-deep); }
+
+  .cellbtn {
+    width: 40px; height: 40px; flex: none;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem;
+    border: 1px solid var(--line); border-radius: 2px;
+    background: var(--paper); color: var(--ink-soft);
+    padding: 0; cursor: default;
+  }
+  .cellbtn.one { color: var(--ink); background: var(--paper-deep); cursor: pointer; }
+  .cellbtn.one:hover:not(:disabled) { background: var(--moss-soft); border-color: var(--moss); color: var(--ink); }
+  .cellbtn.zero { color: var(--unknown); }
+  .cellbtn.taken {
+    background: var(--moss); border-color: var(--moss-deep); color: var(--paper); font-weight: 600;
+  }
+  .cellbtn.shut { opacity: 0.4; cursor: not-allowed; }
+  .cellbtn.cut { background: var(--rust-soft); border-color: var(--rust); color: var(--rust-deep); }
+  .cellbtn:disabled { cursor: not-allowed; }
+  .cellbtn:focus-visible { outline: 2px solid var(--moss-deep); outline-offset: 2px; }
+
+  .colhead { display: flex; gap: 3px; margin-left: 46px; margin-bottom: 4px; }
+  .colhead span.cut { color: var(--rust-deep); font-weight: 600; }
+
+  .after { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); display: none; }
+  .after.open { display: block; }
+  .after .cellbtn { cursor: default; }
+  .after .cellbtn.diag { background: var(--moss); border-color: var(--moss-deep); color: var(--paper); font-weight: 600; }
+
+  /* ---- right panel ---- */
+
+  .clock { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .clock-big {
+    font-family: 'Fraunces', serif; font-size: 1.6rem; font-weight: 600;
+    line-height: 1.1; color: var(--ink);
+  }
+  .clock-unit { font-size: 0.85rem; color: var(--ink-soft); }
+
+  .example-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .btn-row button { flex: 1; }
+
+  .status-box {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 2px;
+    padding: 14px 16px; font-size: 0.92rem; line-height: 1.5; margin-bottom: 12px;
+  }
+  .status-box.done { border-color: var(--moss); background: var(--moss-soft); }
+  .status-box.stuck { border-color: var(--alert); background: #F4E3DE; }
+
+  .verdict-box {
+    border-radius: 2px; padding: 12px 14px; font-size: 0.9rem; line-height: 1.5;
+    margin-bottom: 12px; border: 1px solid var(--line); background: var(--paper);
+  }
+  .verdict-box.is-yes { border-color: var(--moss); background: var(--moss-soft); }
+  .verdict-box.is-no { border-color: var(--rust); background: var(--rust-soft); }
+  .verdict-box.quiet { color: var(--ink-soft); }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sitebar">
+    <span class="course-mark">CS 5800 · Week 07</span>
+    <a href="../index.html">&larr; All problems</a>
+  </div>
+
+  <h1>Getting ones onto the diagonal</h1>
+  <div class="meta-strip">
+    <span class="tag">network flow</span>
+    <span class="tag">matching</span>
+  </div>
+
+  <div class="statement">
+    <p>Let <em>M</em> be an <em>n &times; n</em> matrix whose entries are all 0 or 1, and write <em>m<sub>ij</sub></em> for the entry in row <em>i</em>, column <em>j</em>. A <em>diagonal</em> entry is one of the form <em>m<sub>ii</sub></em>.</p>
+    <p>Swapping rows <em>i</em> and <em>j</em> means exchanging <em>m<sub>ik</sub></em> and <em>m<sub>jk</sub></em> for every <em>k</em>; swapping two columns is the same idea. We call <em>M</em> <em>rearrangeable</em> if some sequence of row swaps and column swaps leaves every diagonal entry equal to 1.</p>
+    <p><strong>(a)</strong> Give a matrix that is not rearrangeable even though every row and every column contains at least one 1. <strong>(b)</strong> Give a polynomial-time algorithm that decides whether a 0-1 matrix is rearrangeable.</p>
+  </div>
+
+  <p class="subtitle">Claim one 1 in each row, never two in the same column. Fill every row and the matrix can be rearranged to put your claims on the diagonal. The model checks your claims and nothing else; it will not pick any for you.</p>
+
+  <div class="divider" style="margin:24px 0;"></div>
+
+  <div class="layout">
+
+    <div class="panel">
+      <p class="section-label">click a 1 to claim it for its row</p>
+      <div class="colhead" id="colhead"></div>
+      <div class="mat" id="matrix"></div>
+      <p class="hint" style="margin-top:12px;">A faded 1 is one you cannot take, because another row has already claimed its column. Click a claim again to give it back.</p>
+
+      <div class="after" id="after">
+        <p class="section-label">the same matrix, rows and columns reordered to suit your claims</p>
+        <div class="colhead" id="after-colhead"></div>
+        <div class="mat" id="after-matrix"></div>
+        <p class="hint" style="margin-top:12px;" id="after-note"></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="clock">
+        <span class="clock-big" id="progress">0 of 0</span>
+        <span class="clock-unit">rows have a column</span>
+      </div>
+
+      <div id="status" class="status-box" role="status" aria-live="polite"></div>
+
+      <div class="btn-row">
+        <button id="rearrange" disabled>Rearrange it</button>
+        <button id="clear">Clear claims</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <p class="section-label">pick a matrix</p>
+      <div class="example-row" role="group" aria-label="Choose a matrix">
+        <button id="load-example-1" aria-pressed="false">Example 1</button>
+        <button id="load-example-2" aria-pressed="false">Example 2</button>
+        <button id="load-example-3" aria-pressed="false">Example 3</button>
+      </div>
+      <p class="hint" id="set-caption"></p>
+
+      <div class="divider"></div>
+
+      <div id="verdict" class="verdict-box quiet">Try it yourself first, then ask.</div>
+      <button id="check" style="width:100%;margin-bottom:8px;">Can this one be rearranged?</button>
+      <button id="reveal" style="width:100%;" disabled>Show what blocks it</button>
+      <p class="hint" style="margin-top:8px;">The check answers yes or no for the matrix, never which entries to claim. The blocking set unlocks once you have asked.</p>
+    </div>
+
+  </div>
+
+  <div class="questions wrap-narrow" style="padding:0;">
+    <div class="divider" style="margin:34px 0 22px;"></div>
+    <h2>Questions to sit with</h2>
+    <ol>
+      <li>Rearrange Example 1, then clear it and rearrange it a different way. Ignore the swapping entirely for a moment: in plain terms, what is the thing you are choosing when you rearrange a matrix?</li>
+      <li>Argue that you never have to reason about the <em>order</em> of the swaps at all. Why does any amount of row and column swapping come down to picking one 1 in each row with no two in the same column?</li>
+      <li>Example 2 has a 1 in every row and in every column, and still cannot be rearranged, which answers part (a). Find the rows that spoil it. How many rows are in that set, and how many columns do all of their 1s fit into?</li>
+      <li>State the general condition. For which sets of rows does the presence of such a set make a matrix impossible to rearrange, and why is that obviously fatal?</li>
+      <li>Example 3 can be rearranged in exactly one way, even though it has fifteen 1s spread about. How many ways are there of picking one 1 per row before you worry about collisions? Why is trying them all a bad plan for a matrix of size <em>n</em>?</li>
+      <li>Draw the bipartite graph with a node per row, a node per column, and an edge for every 1. What are you hunting for in that graph? Now turn it into a flow network: where do the source and sink go, what are the capacities, and what value of the maximum flow means yes?</li>
+      <li>When the answer is no, the blocking set of rows is a certificate that somebody else can check quickly. Say what that set corresponds to in your flow network, and which theorem guarantees one always exists when the answer is no.</li>
+      <li>Someone hands you a finished rearrangement and claims it works. How long does checking take? Compare that with deciding the question from scratch.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+
+const SETS = {
+  1: [[1,1,0,0],
+      [0,1,1,0],
+      [0,0,1,1],
+      [1,0,0,1]],
+  2: [[1,0,1,0,0],
+      [0,1,0,0,1],
+      [0,0,0,1,1],
+      [1,0,0,0,0],
+      [0,0,1,0,0]],
+  3: [[1,0,1,0,0,1],
+      [0,0,1,1,0,1],
+      [0,0,0,1,0,0],
+      [0,0,0,0,1,1],
+      [1,1,0,1,0,1],
+      [0,0,0,1,0,1]]
+};
+
+let M = [];
+let claim = [];            // claim[r] = column claimed by row r, or -1
+let n = 0;
+let activeExample = null;
+let hasChecked = false;
+let showingCut = false;
+let cutRows = [], cutCols = [];
+let showingAfter = false;
+
+const takenBy = c => claim.findIndex(x => x === c);
+const claimed = () => claim.filter(x => x >= 0).length;
+const full = () => claimed() === n;
+
+/* A row is in trouble when it has no claim and every column it could use has
+   already gone to somebody else. */
+function stuckRows() {
+  const out = [];
+  for (let r = 0; r < n; r++) {
+    if (claim[r] >= 0) continue;
+    let any = false;
+    for (let c = 0; c < n; c++) if (M[r][c] && takenBy(c) === -1) { any = true; break; }
+    if (!any) out.push(r);
+  }
+  return out;
+}
+
+/* ---------- the truth, by brute force ---------- */
+
+/* Every way of lining the columns up against the rows, tried one at a time.
+   No graph, no augmenting paths, no flow -- which is the whole point of the
+   exercise, so the page must not contain it. n is at most 6 here, so 720
+   tries is nothing. */
+function anyRearrangement() {
+  const cols = [...Array(n).keys()];
+  let found = null;
+  (function go(i, used, pick) {
+    if (found) return;
+    if (i === n) { found = pick.slice(); return; }
+    for (const c of cols) {
+      if (used[c] || !M[i][c]) continue;
+      used[c] = true; pick.push(c);
+      go(i + 1, used, pick);
+      pick.pop(); used[c] = false;
+    }
+  })(0, Array(n).fill(false), []);
+  return found;
+}
+
+/* The smallest set of rows whose 1s are crammed into fewer columns than the
+   set has rows. Found by looking at every subset, which at n = 6 is 64. */
+function blockingSet() {
+  const subsets = [];
+  for (let mask = 1; mask < (1 << n); mask++) subsets.push(mask);
+  subsets.sort((a, b) => bits(a) - bits(b));
+  for (const mask of subsets) {
+    const rows = [], cols = new Set();
+    for (let r = 0; r < n; r++) if (mask & (1 << r)) {
+      rows.push(r);
+      for (let c = 0; c < n; c++) if (M[r][c]) cols.add(c);
+    }
+    if (cols.size < rows.length) return { rows, cols: [...cols].sort((a, b) => a - b) };
+  }
+  return null;
+  function bits(m) { let k = 0; while (m) { k += m & 1; m >>= 1; } return k; }
+}
+
+/* ---------- drawing ---------- */
+
+function renderMatrix() {
+  const head = document.getElementById('colhead');
+  const mat = document.getElementById('matrix');
+  const keep = document.activeElement && document.activeElement.dataset
+    ? document.activeElement.dataset.cell : null;
+  head.innerHTML = ''; mat.innerHTML = '';
+
+  for (let c = 0; c < n; c++) {
+    const s = document.createElement('span');
+    s.className = 'clab' + (showingCut && cutCols.includes(c) ? ' cut' : '');
+    s.textContent = 'c' + (c + 1);
+    head.appendChild(s);
+  }
+
+  const bad = stuckRows();
+  for (let r = 0; r < n; r++) {
+    const row = document.createElement('div');
+    row.className = 'mrow';
+
+    const lab = document.createElement('span');
+    lab.className = 'rlab' + (bad.includes(r) ? ' blocked' : (claim[r] >= 0 ? ' done' : ''));
+    lab.textContent = 'r' + (r + 1);
+    row.appendChild(lab);
+
+    for (let c = 0; c < n; c++) {
+      const b = document.createElement('button');
+      const one = M[r][c] === 1;
+      const mine = claim[r] === c;
+      const owner = takenBy(c);
+      const shut = one && !mine && owner !== -1;
+      b.className = 'cellbtn ' + (one ? 'one' : 'zero') +
+        (mine ? ' taken' : '') + (shut ? ' shut' : '') +
+        (showingCut && cutRows.includes(r) && cutCols.includes(c) && one ? ' cut' : '');
+      b.textContent = M[r][c];
+      b.dataset.cell = r + ',' + c;
+      b.disabled = !one || shut;
+      b.setAttribute('aria-label',
+        `Row ${r + 1}, column ${c + 1}, entry ${M[r][c]}.` +
+        (!one ? ' Nothing to claim here.'
+              : mine ? ' Claimed by this row; activate to give it back.'
+              : shut ? ` Column ${c + 1} already belongs to row ${owner + 1}.`
+                     : ' Activate to claim it for this row.'));
+      if (one && !shut) b.addEventListener('click', () => toggle(r, c));
+      row.appendChild(b);
+    }
+    mat.appendChild(row);
+  }
+
+  if (keep) {
+    const again = mat.querySelector(`[data-cell="${keep}"]`);
+    if (again && !again.disabled) again.focus({ preventScroll: true });
+  }
+}
+
+function renderAfter() {
+  const box = document.getElementById('after');
+  box.classList.toggle('open', showingAfter);
+  if (!showingAfter) return;
+
+  // put row r and its claimed column into the same position, for each r
+  const rowOrder = [...Array(n).keys()];
+  const colOrder = rowOrder.map(r => claim[r]);
+
+  const head = document.getElementById('after-colhead');
+  const mat = document.getElementById('after-matrix');
+  head.innerHTML = ''; mat.innerHTML = '';
+
+  colOrder.forEach(c => {
+    const s = document.createElement('span');
+    s.className = 'clab';
+    s.textContent = 'c' + (c + 1);
+    head.appendChild(s);
+  });
+
+  rowOrder.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'mrow';
+    const lab = document.createElement('span');
+    lab.className = 'rlab';
+    lab.textContent = 'r' + (r + 1);
+    row.appendChild(lab);
+    colOrder.forEach((c, j) => {
+      const b = document.createElement('button');
+      b.className = 'cellbtn ' + (M[r][c] ? 'one' : 'zero') + (i === j ? ' diag' : '');
+      b.textContent = M[r][c];
+      b.disabled = true;
+      row.appendChild(b);
+    });
+    mat.appendChild(row);
+  });
+
+  document.getElementById('after-note').textContent =
+    `Rows in the order ${rowOrder.map(r => 'r' + (r + 1)).join(', ')} against columns in the ` +
+    `order ${colOrder.map(c => 'c' + (c + 1)).join(', ')}. Every entry down the diagonal is a 1, ` +
+    `and both of those orders are reachable by swapping a pair at a time.`;
+}
+
+/* ---------- readouts ---------- */
+
+function updateReadouts() {
+  const bad = stuckRows();
+  document.getElementById('progress').textContent = claimed() + ' of ' + n;
+
+  const box = document.getElementById('status');
+  box.classList.remove('done', 'stuck');
+  if (full()) {
+    box.classList.add('done');
+    box.textContent = `Every row has a column of its own. Rearrange it and see those ` +
+      `${n} claims line up along the diagonal.`;
+  } else if (bad.length) {
+    box.classList.add('stuck');
+    box.textContent = `Row${bad.length > 1 ? 's' : ''} ${bad.map(r => r + 1).join(', ')} ` +
+      `${bad.length > 1 ? 'have' : 'has'} no column left: every 1 in ` +
+      `${bad.length > 1 ? 'those rows' : 'that row'} sits in a column somebody else took. ` +
+      `Give one back and try a different split.`;
+  } else {
+    box.textContent = `${n - claimed()} row${n - claimed() === 1 ? '' : 's'} still ` +
+      `need a column, and none of them is out of options yet.`;
+  }
+
+  document.getElementById('rearrange').disabled = !full();
+  document.getElementById('clear').disabled = claimed() === 0;
+  document.getElementById('reveal').disabled = !hasChecked;
+  document.getElementById('reveal').classList.toggle('active', showingCut);
+  document.getElementById('reveal').textContent =
+    showingCut ? 'Hide what blocks it' : 'Show what blocks it';
+}
+
+function updateExampleUI() {
+  for (let k = 1; k <= 3; k++) {
+    const b = document.getElementById('load-example-' + k);
+    const on = activeExample === k;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const ones = M.reduce((a, r) => a + r.reduce((x, v) => x + v, 0), 0);
+  document.getElementById('set-caption').textContent =
+    `Example ${activeExample} is loaded — ${n} by ${n}, with ${ones} ones in it.`;
+}
+
+function resetVerdict() {
+  const v = document.getElementById('verdict');
+  v.className = 'verdict-box quiet';
+  v.textContent = 'Try it yourself first, then ask.';
+}
+
+function check() {
+  const v = document.getElementById('verdict');
+  hasChecked = true;
+  if (anyRearrangement()) {
+    v.className = 'verdict-box is-yes';
+    v.textContent = `Yes, this one can be rearranged. Finding the claims is your job; ` +
+      `what would you have to show to convince somebody it was impossible?`;
+  } else {
+    v.className = 'verdict-box is-no';
+    v.textContent = `No. However you swap the rows and columns, some diagonal entry is ` +
+      `always a 0. There is a reason, and it is a short one.`;
+  }
+  refresh();
+}
+
+function toggleCut() {
+  if (!hasChecked) return;
+  showingCut = !showingCut;
+  if (showingCut) {
+    const b = blockingSet();
+    if (b) { cutRows = b.rows; cutCols = b.cols; }
+    else { cutRows = []; cutCols = []; }
+  }
+  refresh();
+}
+
+/* ---------- moves ---------- */
+
+function toggle(r, c) {
+  if (!M[r][c]) return;
+  if (claim[r] === c) claim[r] = -1;
+  else {
+    const owner = takenBy(c);
+    if (owner !== -1 && owner !== r) return;
+    claim[r] = c;
+  }
+  showingAfter = false;
+  resetVerdict();
+  refresh();
+}
+
+function refresh() {
+  renderMatrix();
+  renderAfter();
+  updateReadouts();
+  updateExampleUI();
+}
+
+/* ---------- loading ---------- */
+
+function loadSet(which) {
+  activeExample = which;
+  M = SETS[which].map(r => r.slice());
+  n = M.length;
+  claim = Array(n).fill(-1);
+  hasChecked = false;
+  showingCut = false;
+  showingAfter = false;
+  cutRows = []; cutCols = [];
+  resetVerdict();
+  refresh();
+}
+
+for (const k of [1, 2, 3]) {
+  document.getElementById('load-example-' + k).addEventListener('click', () => loadSet(k));
+}
+document.getElementById('clear').addEventListener('click', () => {
+  claim = Array(n).fill(-1);
+  showingAfter = false;
+  resetVerdict();
+  refresh();
+});
+document.getElementById('rearrange').addEventListener('click', () => {
+  if (!full()) return;
+  showingAfter = !showingAfter;
+  refresh();
+});
+document.getElementById('check').addEventListener('click', check);
+document.getElementById('reveal').addEventListener('click', toggleCut);
+
+loadSet(1);
+
+</script>
+</body>
+</html>
